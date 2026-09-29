@@ -1,4 +1,4 @@
-# MacroPad 514c:8850 — Configurator
+# MacroPad 514c:8850 — 12 Keys · 2 Knobs Configurator
 
 All-in-one configurator for the cheap Aliexpress **"mini macro keyboard"**: **12 keys + 2 clickable rotary knobs, 3 layers, per-key RGB backlight**, which enumerates on USB as **`514c:8850`** (the "CH57x" family convention used for these pads).
 
@@ -27,10 +27,6 @@ Everything here was verified on a real unit: reads, writes, LED records, and kno
 
 ### Web UI wrapper (`windows/web_launcher.py`)
 Serves a **local copy of the GitHub-style web configurator** (patched `web/`) and opens it in Chromium via WebHID. The patch adds **LED support for the Alternative B dialect** (spokino format), so the same UI handles keys, knobs, layers and backlight.
-
-### Gamepad mode (`windows/gamepad.py`) — experimental
-Maps pad keys to a **virtual Xbox 360 controller** via the ViGEm bus driver (already installed on many gaming rigs). Needs the pad keys bound to F13–F24; requires `vgamepad`.
-[More details in the file header.]
 
 ### Linux / Fedora support (`linux/`)
 - `60-ch57x-keypad.rules` — systemd `uaccess` rule so WebHID/Chromium and hidraw can talk to the pad without root.
@@ -96,7 +92,6 @@ web/                        Patched macropad-rebind UI (MIT), LEDs enabled for A
 windows/
   macropad_configurator.py  Main Windows app: keys + knobs + LEDs + quick-assign
   web_launcher.py           Serves web/ at 127.0.0.1 and opens Chromium
-  gamepad.py                Experimental: pad keys -> virtual Xbox 360 (ViGEm)
   tools/                    Driver-free HID scripts: probe, dump, setkey, keylog, led_test
 linux/
   60-ch57x-keypad.rules     udev uaccess rule
