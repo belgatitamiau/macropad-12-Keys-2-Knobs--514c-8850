@@ -1,0 +1,43 @@
+name: Bug report
+description: Something does not work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before filing:** if only *some* keys light up or respond, the keypad has been
+        told it is a different model — press **Repair device identity** in the Reset
+        panel. See [docs/PROTOCOL.md](../blob/main/docs/PROTOCOL.md) for why that happens.
+
+        If the browser will not open the device on Linux, install the udev rule from
+        `linux/` and replug — the filename must sort below `70`.
+
+  - type: input
+    id: usb-id
+    attributes:
+      label: USB vendor:product ID
+      placeholder: "1189:8842"
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Browser and OS
+      placeholder: "Chrome 141 on Fedora 44 / Edge on Windows 11 / Chrome on Android 15"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Device log
+      description: Copy the Device log panel. It shows every byte sent and received, which is usually enough to diagnose the problem outright.
+      render: text

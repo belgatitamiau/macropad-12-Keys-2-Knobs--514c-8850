@@ -1,0 +1,2662 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Macropad Rebind — CH57x configurator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   Instrument-panel palette. Deliberately single-theme: this is a bench
+   utility for a black keypad with red LEDs, and every colour is painted
+   explicitly so it never borrows a host theme.
+   ------------------------------------------------------------------ */
+:root{
+  --bg:#0d0f12; --panel:#14171b; --panel-2:#191d22; --raise:#20252b;
+  --line:#272d34; --line-soft:#1e2329;
+  --ink:#e7ebf0; --ink-2:#aeb7c2; --dim:#79838f;
+  --led:#ff4a38; --led-dim:#7d241c; --led-soft:#2a1310;
+  --ok:#35c2a5; --ok-soft:#0f2a26;
+  --warn:#f0a92a; --warn-soft:#2a1f0c;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,sans-serif;
+  --disp:"Archivo","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+button,select,input,textarea{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--led);outline-offset:2px}
+
+/* ---- shell ---- */
+.top{
+  display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between;
+  padding:.85rem clamp(1rem,3vw,2rem);
+  border-bottom:1px solid var(--line);background:var(--panel);
+  position:sticky;top:0;z-index:20;
+}
+.brand{display:flex;align-items:baseline;gap:.7rem;min-width:0}
+.brand h1{font-family:var(--disp);font-weight:700;font-size:1.12rem;letter-spacing:-.02em;margin:0;white-space:nowrap}
+.brand .sub{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.top-actions{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+
+.status{
+  display:inline-flex;align-items:center;gap:.45rem;
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;
+  padding:.3rem .55rem;border-radius:3px;background:var(--panel-2);color:var(--dim);
+  border:1px solid var(--line);white-space:nowrap;
+}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.status.on{color:var(--ok);background:var(--ok-soft);border-color:var(--ok)}
+.status.err{color:var(--led);background:var(--led-soft);border-color:var(--led-dim)}
+
+button{
+  background:var(--raise);border:1px solid var(--line);color:var(--ink);
+  padding:.44rem .8rem;border-radius:3px;cursor:pointer;
+  font-weight:500;transition:background .13s ease,border-color .13s ease;
+}
+button:hover:not(:disabled){background:#2a3037;border-color:#39414a}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--led);border-color:var(--led);color:#fff;font-weight:600}
+button.primary:hover:not(:disabled){background:#ff6252;border-color:#ff6252}
+button.ghost{background:transparent}
+button.tiny{padding:.2rem .45rem;font-size:.78rem}
+
+main{
+  display:grid;gap:1.25rem;
+  grid-template-columns:minmax(0,1fr) minmax(320px,400px);
+  align-items:start;
+  padding:clamp(1rem,3vw,2rem);
+  max-width:1340px;margin:0 auto;
+}
+@media (max-width:1000px){ main{grid-template-columns:minmax(0,1fr)} }
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px}
+.card > header{
+  display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:space-between;
+  padding:.7rem .95rem;border-bottom:1px solid var(--line-soft);
+}
+.card > header h2{
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--dim);font-weight:500;margin:0;
+}
+.card .body{padding:1rem}
+.stack{display:flex;flex-direction:column;gap:1.25rem;min-width:0}
+
+/* ---- layer tabs ---- */
+.tabs{display:flex;gap:2px;background:var(--panel-2);padding:2px;border-radius:3px}
+.tabs button{
+  background:transparent;border:0;padding:.3rem .75rem;border-radius:2px;
+  font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;color:var(--dim);
+}
+.tabs button[aria-selected="true"]{background:var(--raise);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+
+/* ---- the keypad ---- */
+.device{
+  display:flex;flex-direction:column;gap:1.1rem;align-items:center;
+  padding:1.5rem 1rem;
+  background:linear-gradient(180deg,#101317,#0b0d10);
+  border-radius:4px;border:1px solid var(--line-soft);
+}
+.knobs{display:flex;gap:2.2rem;justify-content:center;flex-wrap:wrap}
+.knob{display:flex;flex-direction:column;align-items:center;gap:.45rem}
+.knob-dial{
+  width:74px;height:74px;border-radius:50%;
+  background:radial-gradient(circle at 38% 30%,#3a4149,#171a1e 70%);
+  border:1px solid #2e353d;
+  display:grid;place-items:center;position:relative;
+  box-shadow:0 4px 14px rgba(0,0,0,.5);
+}
+.knob-dial::after{content:"";position:absolute;top:7px;width:2px;height:16px;border-radius:1px;background:#c3ccd6}
+.knob-dial button{
+  width:38px;height:38px;border-radius:50%;padding:0;
+  font-family:var(--mono);font-size:.62rem;
+  background:#0f1215;border:1px solid #2e353d;color:var(--ink-2);
+}
+.knob-dial button.bound{border-color:var(--led);color:var(--led)}
+.knob-dial button.sel{background:var(--led);border-color:var(--led);color:#fff}
+.knob-rot{display:flex;gap:.35rem}
+.knob-rot button{
+  font-family:var(--mono);font-size:.66rem;padding:.22rem .5rem;min-width:44px;
+  background:#0f1215;
+}
+.knob-rot button.bound{border-color:var(--led);color:var(--led)}
+.knob-rot button.sel{background:var(--led);border-color:var(--led);color:#fff}
+.knob-label{font-family:var(--mono);font-size:.62rem;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem;width:min(100%,340px)}
+.keycap{
+  aspect-ratio:1/.86;border-radius:5px;padding:.35rem .3rem;
+  background:linear-gradient(180deg,#22272d,#171b1f);
+  border:1px solid #2b3138;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;
+  cursor:pointer;position:relative;overflow:hidden;
+  box-shadow:0 2px 0 #0c0e11,0 5px 12px rgba(0,0,0,.4);
+  transition:transform .1s ease,border-color .13s ease;
+}
+.keycap:hover{border-color:#3c444d;transform:translateY(-1px)}
+.keycap.bound{border-color:var(--led-dim)}
+.keycap.bound::before{
+  content:"";position:absolute;inset:auto 0 0 0;height:2px;background:var(--led);opacity:.8;
+}
+.keycap.sel{border-color:var(--led);box-shadow:0 0 0 1px var(--led),0 2px 0 #0c0e11,0 6px 18px rgba(255,74,56,.22);transform:translateY(-1px)}
+.keycap .kn{font-family:var(--mono);font-size:.58rem;color:var(--dim);letter-spacing:.06em}
+.keycap .kv{
+  font-family:var(--disp);font-weight:600;font-size:.8rem;line-height:1.15;text-align:center;
+  word-break:break-word;max-width:100%;
+}
+.keycap.empty .kv{color:var(--dim);font-weight:500;font-style:italic}
+
+/* ---- editor ---- */
+.field{display:flex;flex-direction:column;gap:.35rem;min-width:0}
+.field > label,.legend{
+  font-family:var(--mono);font-size:.66rem;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);
+}
+select,input[type=text],input[type=number],textarea{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:3px;
+  padding:.4rem .55rem;width:100%;
+}
+textarea{font-family:var(--mono);font-size:.78rem;resize:vertical;line-height:1.5}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end}
+.row > *{flex:1 1 0;min-width:90px}
+
+.seg{display:flex;gap:2px;background:var(--panel-2);padding:2px;border-radius:3px;border:1px solid var(--line)}
+.seg button{
+  flex:1;background:transparent;border:0;padding:.32rem .4rem;border-radius:2px;
+  font-size:.82rem;color:var(--dim);
+}
+.seg button[aria-pressed="true"]{background:var(--raise);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+
+.mods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.3rem}
+.mods button{
+  font-family:var(--mono);font-size:.68rem;padding:.3rem .2rem;text-align:center;
+  background:var(--panel-2);
+}
+.mods button[aria-pressed="true"]{background:var(--led);border-color:var(--led);color:#fff}
+
+.steps{display:flex;flex-direction:column;gap:.4rem}
+.step{
+  display:flex;gap:.4rem;align-items:center;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:.35rem .45rem;
+}
+.step .n{font-family:var(--mono);font-size:.65rem;color:var(--dim);flex:none;width:1.3rem}
+.step .txt{font-family:var(--mono);font-size:.8rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.capture{
+  border:1px dashed var(--line);border-radius:3px;padding:.7rem;text-align:center;
+  background:var(--panel-2);cursor:pointer;color:var(--ink-2);font-size:.86rem;
+}
+.capture.armed{border-color:var(--led);border-style:solid;background:var(--led-soft);color:var(--led)}
+
+.hint{font-size:.8rem;color:var(--dim);line-height:1.5}
+.hint code,code{
+  font-family:var(--mono);font-size:.86em;background:var(--panel-2);
+  border:1px solid var(--line-soft);border-radius:2px;padding:.05em .3em;
+}
+
+/* ---- LED ---- */
+.swatches{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:.3rem}
+.swatch{
+  aspect-ratio:1;border-radius:3px;border:1px solid var(--line);cursor:pointer;padding:0;
+}
+.swatch[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink);border-color:var(--ink)}
+
+/* ---- log ---- */
+.log{
+  font-family:var(--mono);font-size:.72rem;line-height:1.6;
+  background:#0a0c0e;border:1px solid var(--line-soft);border-radius:3px;
+  padding:.6rem .7rem;max-height:230px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:var(--ink-2);
+}
+.log .t{color:var(--dim)}
+.log .w{color:var(--warn)}
+.log .e{color:var(--led)}
+.log .g{color:var(--ok)}
+
+.note{
+  display:flex;gap:.55rem;align-items:flex-start;
+  background:var(--warn-soft);border:1px solid var(--warn);border-radius:3px;
+  padding:.6rem .7rem;font-size:.82rem;color:#f2d9a8;line-height:1.5;
+}
+.note b{color:var(--warn);font-family:var(--disp)}
+.unsupported{
+  margin:clamp(1rem,3vw,2rem);padding:1.2rem;border-radius:4px;
+  background:var(--led-soft);border:1px solid var(--led-dim);color:#ffd3cd;
+}
+.unsupported h2{font-family:var(--disp);margin:0 0 .5rem;font-size:1.05rem;color:var(--led)}
+.hidden{display:none !important}
+button.danger{background:var(--led-soft);border-color:var(--led-dim);color:var(--led);font-weight:600}
+button.danger:hover:not(:disabled){background:var(--led);border-color:var(--led);color:#fff}
+button.wide{width:100%;padding:.6rem .8rem}
+.presets{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.3rem}
+.presets button{font-family:var(--mono);font-size:.7rem;padding:.35rem .2rem}
+.dz{display:flex;flex-direction:column;gap:.5rem}
+dialog{
+  border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);
+  padding:0;max-width:min(680px,92vw);width:100%;box-shadow:0 24px 60px rgba(0,0,0,.6);
+}
+dialog::backdrop{background:rgba(4,6,8,.72)}
+dialog h3{font-family:var(--disp);font-size:1.05rem;margin:0;letter-spacing:-.01em}
+.dlg-head{padding:.9rem 1.1rem;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;gap:1rem;align-items:baseline}
+.dlg-head .sum{font-family:var(--mono);font-size:.72rem;color:var(--dim)}
+.dlg-body{padding:.6rem 1.1rem;max-height:52vh;overflow:auto}
+.dlg-foot{padding:.8rem 1.1rem;border-top:1px solid var(--line-soft);display:flex;gap:.5rem;justify-content:flex-end}
+.diff{width:100%;border-collapse:collapse;font-size:.83rem}
+.diff th{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+  text-align:left;font-weight:500;padding:.4rem .5rem;border-bottom:1px solid var(--line)}
+.diff td{padding:.4rem .5rem;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.diff td.k{font-family:var(--mono);font-size:.72rem;color:var(--dim);white-space:nowrap}
+.diff td.from{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--led-dim)}
+.diff td.to{color:var(--ink)}
+.diff tr.add td.to{color:var(--ok)}
+.diff tr.del td.to{color:var(--led)}
+.diff .none{color:var(--dim);font-style:italic;text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand">
+    <h1>Macropad Rebind</h1>
+    <span class="sub" id="brandSub">CH57x macropad</span>
+  </div>
+  <div class="top-actions">
+    <span class="status" id="status">disconnected</span>
+    <button id="btnConnect" class="primary">Connect keypad</button>
+    <button id="btnConnectAny" class="ghost" title="Drops the vendor-ID filter, for pads shipping under an unknown vendor id">Device not listed?</button>
+    <button id="btnRead" disabled>Read from keypad</button>
+    <button id="btnWrite" disabled>Write to keypad</button>
+    <button id="btnExport" class="ghost">Export</button>
+    <button id="btnImport" class="ghost">Import</button>
+    <input type="file" id="fileImport" accept="application/json" class="hidden">
+  </div>
+</div>
+
+<div id="noWebHID" class="unsupported hidden">
+  <h2>This browser has no WebHID</h2>
+  <p><code>navigator.hid</code> is unavailable, so nothing here can reach the keypad. Use Chrome, Edge, Opera or another Chromium browser — Firefox and Safari have not implemented WebHID.</p>
+  <p>Also note that <code>navigator.hid</code> defaults to <code>self</code> in Permissions Policy, so this page must be the top-level document: it will not work inside a cross-origin iframe.</p>
+</div>
+
+<dialog id="diffDlg">
+  <div class="dlg-head">
+    <h3>Changes to write</h3>
+    <span class="sum" id="diffSum"></span>
+  </div>
+  <div class="dlg-body" id="diffBody"></div>
+  <div class="dlg-foot">
+    <button id="diffCancel">Cancel</button>
+    <button id="diffGo" class="primary">Write these changes</button>
+  </div>
+</dialog>
+
+<main id="app">
+  <!-- ============ left column ============ -->
+  <div class="stack">
+    <section class="card">
+      <header>
+        <h2>Layout &mdash; <span id="layoutName">12 keys &middot; 2 knobs</span></h2>
+        <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+          <select id="layoutPick" title="How many keys and knobs your keypad has" style="width:auto"></select>
+          <span id="formatWrap" class="hidden" style="display:inline-flex;gap:.4rem;align-items:center">
+            <select id="formatPick" title="Which command format to send" style="width:auto"></select>
+          </span>
+          <select id="orientPick" title="Rotate the on-screen grid to match your keypad" style="width:auto"></select>
+          <div class="tabs" id="layerTabs" role="tablist"></div>
+        </div>
+      </header>
+      <div class="body">
+        <p class="hint hidden" id="formatHint" style="margin-bottom:.8rem"></p>
+        <p class="hint" style="margin-bottom:.8rem">
+          Layers are switched <b>on the keypad itself</b> — the small button on its left edge. The indicator
+          LEDs beside the knobs show which layer is live, and flash once when you press it. The tabs here only
+          choose which layer you are editing.
+        </p>
+        <div class="device">
+          <div class="knobs" id="knobs"></div>
+          <div class="grid" id="grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <header><h2>Backlight — this layer</h2></header>
+      <div class="body stack" style="gap:.9rem">
+        <div class="field">
+          <label for="ledMode">Mode</label>
+          <select id="ledMode">
+            <option value="off">Off</option>
+            <option value="backlight">Backlight — steady</option>
+            <option value="shock">Shock</option>
+            <option value="shock2">Shock 2</option>
+            <option value="press">Light up on press</option>
+          </select>
+        </div>
+        <div class="field" id="ledColorField">
+          <span class="legend">Colour</span>
+          <div class="swatches" id="ledColors"></div>
+        </div>
+        <p class="hint" id="ledCode"></p>
+
+        <button id="btnApplyLed" class="wide" disabled>Apply lighting now</button>
+        <p class="hint">Sends this layer's backlight record straight away, without a full write.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <header>
+        <h2>Device log</h2>
+        <div style="display:flex;gap:.4rem">
+          <button class="tiny ghost" id="btnDetect" disabled>Detect layout</button>
+          <button class="tiny ghost" id="btnClearLog">Clear</button>
+        </div>
+      </header>
+      <div class="body stack" style="gap:.7rem">
+        <div class="log" id="log">Ready. Nothing has been sent to the keypad.</div>
+        <p class="hint"><b>Read from keypad</b> uses <code>0xFA</code> and <code>0xFB</code> — both confirmed against this hardware. They are reads and change nothing on the device. A binding loaded from the keypad is written back <em>byte for byte</em> unless you edit it, so fields this tool has not fully decoded survive a round trip untouched.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ right column ============ -->
+  <div class="stack">
+    <section class="card">
+      <header>
+        <h2 id="editorTitle">Nothing selected</h2>
+        <button class="tiny ghost" id="btnClearBinding" disabled>Clear</button>
+      </header>
+      <div class="body stack" style="gap:1rem" id="editor">
+        <p class="hint">Pick a key or a knob action on the left to bind it.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <header><h2>Before you write</h2></header>
+      <div class="body stack" style="gap:.8rem">
+        <div class="note">
+          <div><b>Programming needs the USB cable.</b> If your keypad also does Bluetooth, that is for
+          <em>using</em> it, not configuring it — the configuration interface only exists over USB. Set it up
+          wired, then unplug and go wireless if you like; the keypad remembers its bindings. (In Bluetooth mode
+          it also turns the backlight off to save battery.)</div>
+        </div>
+        <div class="note">
+          <div><b>One write, all three layers.</b> Writing sends every binding you have set, layer by layer, then the backlight for each layer. Slots you never touched are left alone.</div>
+        </div>
+        <p class="hint">Bindings are kept in this browser under <code>localStorage</code>, so the page remembers them. That is a convenience, not a backup — use <b>Export</b> for anything you care about.</p>
+        <p class="hint">This page never sends <code>0xEF</code>, the command that puts the keypad into its bootloader.</p>
+      </div>
+    </section>
+    <section class="card">
+      <header><h2>Reset</h2></header>
+      <div class="body dz">
+        <button id="btnClearAll" class="wide">Clear this layer in the editor</button>
+        <p class="hint">Empties every binding on <b id="clearLayerName">layer 1</b> <em>in this page only</em>.
+        The keypad keeps working exactly as it does now until you write.</p>
+        <button id="btnRepair" class="wide" disabled>Repair device identity</button>
+        <p class="hint">Re-declares the keypad as <b>12 keys, 2 knobs</b> and rewrites the backlight. Use this if
+        only some keys light up or respond — that means the keypad has been told it is a different model. Key
+        bindings are not affected.</p>
+        <button id="btnBlank" class="wide danger" disabled>Blank this layer on the keypad</button>
+        <p class="hint">Writes an empty binding to every key and knob action on
+        <b id="blankLayerName">layer 1</b>, so nothing on that layer does anything. Other layers are untouched.
+        If the layer holds macros this <b>erases them from the device</b> — export first.</p>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ==================================================================
+   Protocol constants.
+
+   Wire format: the device's report descriptor declares 64-byte in and
+   out reports on report id 0x03, on a vendor collection (usage page
+   0xFF00). WebHID's sendReport() takes the report id separately, so
+   payloads here are 64 bytes and index 0 is the command byte.
+
+   Message layout for a binding:
+
+     [0]      0xFE          write
+     [1]      slot id       1..15 keys, 16.. knob actions, 0xB0 = LED
+     [2]      layer + 1
+     [3]      action type   1 keyboard, 2 media, 3 mouse, 5 delay
+     [4..8]   0
+     [9]      step count / mouse action / LED flag
+     [10..]   payload
+   ================================================================== */
+const REPORT_ID  = 0x03;
+const REPORT_LEN = 64;
+
+/* Vendor ids this hardware ships under. 0x1189 is the common one; 0x514C is
+   the same manufacturer under a second, unregistered id — little-endian it
+   spells "LQ", matching the LQKJ identifier in their installer. Same protocol,
+   same product ids. Reported by a user whose pad the old single-vendor filter
+   silently refused to offer. */
+const VENDOR_IDS = [0x1189, 0x514C];
+
+/* ------------------------------------------------------------------
+   Protocol dialect by (vendor, product).
+
+   These keypads do not all speak the same protocol. Three dialects are
+   known, and the split is NOT by vendor or by product alone — note that
+   1189:8850 and 514C:8850 share a product id and differ:
+
+     ch57x-1   what this tool implements. Write command 0xFE, a 10-byte
+               header, and (modifier-bitmask, keycode) pairs.
+     ch57x-2   1189:8890. Different framing.
+     ch57x-3   514C:8850. Write command 0xFD, a 5-byte header, and
+               3-byte sequence entries where modifiers are their own
+               entries with codes 0xF1..0xF8 rather than a bitmask.
+
+   Mapping taken from ch57x-keyboard-tool's SUPPORTED_DEVICES table.
+   Sending ch57x-1 messages to a ch57x-3 device is accepted without any
+   error and does nothing useful, which is exactly what one user saw.
+   ------------------------------------------------------------------ */
+const MODELS = [
+  { vid: 0x1189, pid: 0x8840, dialect: "ch57x-1" },
+  { vid: 0x1189, pid: 0x8842, dialect: "ch57x-1" },   // developed against this
+  { vid: 0x1189, pid: 0x8850, dialect: "ch57x-1" },
+  { vid: 0x1189, pid: 0x8851, dialect: "ch57x-1" },   // from the 2025 vendor build
+  { vid: 0x514C, pid: 0x8851, dialect: "ch57x-1" },
+  { vid: 0x1189, pid: 0x8890, dialect: "ch57x-2" },
+  { vid: 0x514C, pid: 0x8850, dialect: "ch57x-3" },
+];
+const IMPLEMENTED_DIALECT = "ch57x-1";
+
+/* The dialect ids come from another project's source and mean nothing to anyone
+   configuring a keypad. Plain names for the UI; the ids stay in tooltips and in
+   anything meant to be pasted into a bug report. */
+const DIALECT_LABEL = {
+  "ch57x-1": "Standard",
+  "ch57x-2": "Alternative A",
+  "ch57x-3": "Alternative B",
+};
+const dialectName = d => DIALECT_LABEL[d] || d;
+
+/* What each dialect can do. ch57x-3 has no known LED command and no known read
+   command, so lighting, read-back, write verification, blanking and identity
+   repair are all unavailable there — it can only be written to, blind. */
+const DIALECT_CAPS = {
+  "ch57x-1": { write: true, read: true,  led: true,  maxKeys: 15, knobBase: 16, maxSteps: 18, delay: true,  tested: true  },
+  "ch57x-2": { write: true, read: false, led: false, maxKeys: 12, knobBase: 13, maxSteps: 5,  delay: false, tested: false },
+  // maxSteps is the limit for plain text. This format stores one entry per
+  // keycode *and* one per modifier, capped at CH3_MAX_ENTRIES, so a macro using
+  // modifiers runs out sooner. Pre-flight catches that and names the key, which
+  // is more useful than pretending a single number covers both cases.
+  "ch57x-3": { write: true, read: false, led: true, maxKeys: 16, knobBase: 17, maxSteps: 18, delay: true,  tested: false },
+};
+
+function modelFor(vid, pid) {
+  return MODELS.find(m => m.vid === vid && m.pid === pid) || null;
+}
+
+const CMD_WRITE  = 0xFE;
+const CMD_COMMIT = 0xFD;   // sent as FD FE FF
+const CMD_SEP    = 0xAA;   // sent as AA AA
+
+const TYPE_KEYBOARD = 1, TYPE_MEDIA = 2, TYPE_MOUSE = 3, TYPE_DELAY = 5;
+const LED_SLOT = 0xB0;
+
+const N_LAYERS = 3;
+// Most knobs any of these models carries. Four, not three: the SikaiCase
+// 1189:8842 has twelve keys and four encoders, reported and verified on
+// physical hardware by @geniosid in PR #1. A cap of 3 here rejected that
+// keypad's own 0xFB answer and disabled writing with a message blaming the
+// device. Each knob owns three slots.
+const MAX_KNOBS = 4;
+// Steps per key. Measured on hardware: the firmware keeps at most 18
+// (modifier, keycode) pairs. Send more and the extra pairs are dropped, though
+// the count byte is stored verbatim — so the record ends up claiming a length it
+// does not hold. On replay the firmware walks the stored pairs and ignores that
+// count, so the macro simply comes out truncated rather than corrupt. Clamping
+// here keeps the stored record honest either way.
+const MAX_STEPS = 18;
+
+/* ---- HID keyboard usage table (same ordering ch57x uses) ---- */
+const KEYS = (() => {
+  const t = [];
+  const add = (name, code) => t.push({ name, code });
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach((c, i) => add(c, 0x04 + i));
+  ["1","2","3","4","5","6","7","8","9","0"].forEach((c, i) => add(c, 0x1e + i));
+  [["Enter",0x28],["Esc",0x29],["Backspace",0x2a],["Tab",0x2b],["Space",0x2c],
+   ["-",0x2d],["=",0x2e],["[",0x2f],["]",0x30],["\\",0x31],["#",0x32],[";",0x33],
+   ["'",0x34],["`",0x35],[",",0x36],[".",0x37],["/",0x38],["CapsLock",0x39]
+  ].forEach(([n,c]) => add(n,c));
+  for (let i = 1; i <= 12; i++) add("F" + i, 0x3a + i - 1);
+  [["PrintScreen",0x46],["ScrollLock",0x47],["Pause",0x48],["Insert",0x49],
+   ["Home",0x4a],["PageUp",0x4b],["Delete",0x4c],["End",0x4d],["PageDown",0x4e],
+   ["Right",0x4f],["Left",0x50],["Down",0x51],["Up",0x52],["NumLock",0x53],
+   ["Num /",0x54],["Num *",0x55],["Num -",0x56],["Num +",0x57],["Num Enter",0x58]
+  ].forEach(([n,c]) => add(n,c));
+  for (let i = 1; i <= 9; i++) add("Num " + i, 0x59 + i - 1);
+  [["Num 0",0x62],["Num .",0x63],["IntlBackslash",0x64],["Menu",0x65],
+   ["Power",0x66],["Num =",0x67]].forEach(([n,c]) => add(n,c));
+  // F13-F24 exist in the protocol but the Bluetooth variants of this hardware
+  // cannot emit them — the vendor documentation says so explicitly.
+  for (let i = 13; i <= 24; i++) add("F" + i, 0x68 + i - 13);
+  return t;
+})();
+const KEY_BY_CODE = new Map(KEYS.map(k => [k.code, k.name]));
+
+/* ---- browser KeyboardEvent.code -> HID usage, for "press a key" capture ---- */
+const CAPTURE = (() => {
+  const m = new Map();
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach((c,i) => m.set("Key"+c, 0x04+i));
+  for (let i = 1; i <= 9; i++) m.set("Digit"+i, 0x1e+i-1);
+  m.set("Digit0", 0x27);
+  Object.entries({
+    Enter:0x28, Escape:0x29, Backspace:0x2a, Tab:0x2b, Space:0x2c,
+    Minus:0x2d, Equal:0x2e, BracketLeft:0x2f, BracketRight:0x30, Backslash:0x31,
+    Semicolon:0x33, Quote:0x34, Backquote:0x35, Comma:0x36, Period:0x37,
+    Slash:0x38, CapsLock:0x39, PrintScreen:0x46, ScrollLock:0x47, Pause:0x48,
+    Insert:0x49, Home:0x4a, PageUp:0x4b, Delete:0x4c, End:0x4d, PageDown:0x4e,
+    ArrowRight:0x4f, ArrowLeft:0x50, ArrowDown:0x51, ArrowUp:0x52,
+    NumLock:0x53, NumpadDivide:0x54, NumpadMultiply:0x55, NumpadSubtract:0x56,
+    NumpadAdd:0x57, NumpadEnter:0x58, Numpad0:0x62, NumpadDecimal:0x63,
+    IntlBackslash:0x64, ContextMenu:0x65, NumpadEqual:0x67,
+  }).forEach(([k,v]) => m.set(k,v));
+  for (let i = 1; i <= 9; i++) m.set("Numpad"+i, 0x59+i-1);
+  for (let i = 1; i <= 24; i++) m.set("F"+i, i <= 12 ? 0x3a+i-1 : 0x68+i-13);
+  return m;
+})();
+
+/* ------------------------------------------------------------------
+   Modifier names are per-operating-system, though the byte is not.
+
+   HID modifier bit 0x08 is "Left GUI" — the Windows key on Windows,
+   Command on macOS, Super or Meta on Linux. 0x04 is Alt on Windows and
+   Linux but Option on a Mac. The keypad sends the same code regardless;
+   only the label a person recognises differs, so it follows the machine
+   you are configuring from.
+   ------------------------------------------------------------------ */
+function detectPlatform() {
+  const p = navigator.userAgentData?.platform || navigator.platform ||
+            navigator.userAgent || "";
+  if (/mac|iphone|ipad/i.test(p)) return "mac";
+  if (/win/i.test(p))             return "windows";
+  return "other";
+}
+const PLATFORM = detectPlatform();
+
+const MODIFIER_NAMES = {
+  0x04: { windows: "Alt",   mac: "Option",  other: "Alt"   },
+  0x08: { windows: "Win",   mac: "Command", other: "Super" },
+  0x40: { windows: "RAlt",  mac: "ROption", other: "RAlt"  },
+  0x80: { windows: "RWin",  mac: "RCommand",other: "RSuper" },
+};
+const ALL_NAMES = {
+  0x04: "Alt on Windows and Linux, Option on macOS",
+  0x08: "the Windows key, Command on macOS, Super or Meta on Linux",
+  0x40: "right Alt / right Option",
+  0x80: "right Windows key / right Command / right Super",
+};
+const modName = bit => MODIFIER_NAMES[bit]?.[PLATFORM] ?? MODIFIER_NAMES[bit]?.other;
+
+const MODIFIERS = [
+  { bit:0x01, label:"Ctrl"  }, { bit:0x02, label:"Shift"  },
+  { bit:0x04, label:modName(0x04) }, { bit:0x08, label:modName(0x08) },
+  { bit:0x10, label:"RCtrl" }, { bit:0x20, label:"RShift" },
+  { bit:0x40, label:modName(0x40) }, { bit:0x80, label:modName(0x80) },
+];
+
+/* Consumer-page usages. The first block is confirmed against hardware; the
+   launcher and tone controls come from the vendor application's own MultiMedia
+   tab, and the launchers are independently corroborated by
+   Palanx/CH57x-Whisperer's decoder. Whether a given usage does anything depends
+   on the host OS, not the keypad. */
+const MEDIA = [
+  ["Volume up",0xe9], ["Volume down",0xea], ["Mute",0xe2],
+  ["Play / pause",0xcd], ["Next track",0xb5], ["Previous track",0xb6],
+  ["Stop",0xb7], ["Brightness up",0x6f], ["Brightness down",0x70],
+  ["Calculator",0x192], ["Favourites",0x182], ["Lock screen",0x19e],
+  ["Browser home",0x223], ["Browser back",0x224], ["Browser forward",0x225],
+  ["Browser refresh",0x227], ["My computer",0x194], ["E-mail",0x18a],
+  ["Media player",0x183],
+  ["Bass up",0x152], ["Bass down",0x153],
+  ["Treble up",0x154], ["Treble down",0x155],
+];
+
+const LED_COLORS = [
+  ["White",  "#f2f4f7", 0], ["Red",    "#ff4a38", 1], ["Orange", "#ff8c2b", 2],
+  ["Yellow", "#f5d020", 3], ["Green",  "#3fc96a", 4], ["Cyan",   "#2fd0d6", 5],
+  ["Blue",   "#4a86ff", 6], ["Purple", "#a566ff", 7],
+];
+const LED_MODE_CODE = { off:0, backlight:1, shock:2, shock2:3, press:4 };
+// RGB per palette index (0..7) — used by the spokino LED record for this pad.
+const LED_RGB = [
+  [255,255,255], [255,74,56], [255,140,43], [245,208,32],
+  [63,201,106], [47,208,214], [74,134,255], [165,102,255],
+];
+
+/* ------------------------------------------------------------------
+   Device variant, command 0xFC.  NOT wired to any control — read this
+   before you change that.
+
+   0xFC tells the keypad which hardware variant it is. Payload is
+   [0xFC, 0xFC, keys, knobs]. The firmware recognises the 15 combinations
+   below and nothing else.
+
+   Send the wrong one and the firmware drives only that many keys: a
+   12-key pad told (3, 1) lights three keys and ignores the other nine.
+   Key bindings survive — only the declared geometry changes — but the
+   keypad looks broken and the cause is not discoverable from the UI.
+
+   Recovery is variantReport(12, 2) followed by an LED record and a
+   commit. Kept here because that recovery is worth having, and because
+   the constant documents a hazard that is otherwise invisible.
+   ------------------------------------------------------------------ */
+const DEVICE_VARIANTS = [
+  [0, 0], [2, 0], [3, 1], [4, 0], [4, 1],
+  [5, 0], [6, 0], [6, 1], [6, 2], [9, 2],
+  [9, 3], [11, 3], [12, 2], [12, 3], [12, 4], [15, 3],
+];
+
+const KNOB_ACTIONS = ["ccw", "press", "cw"];
+const KNOB_GLYPH   = { ccw:"↺", press:"●", cw:"↻" };
+
+/* Slot ids: keys are 1..12, knob k action a -> 16 + 3k + a.
+   Knob 0 is the physically LEFT knob and knob 1 the right — verified on
+   hardware, and not something you can infer from a config where both are
+   bound to volume. Actions run ccw, press, cw. */
+/* The dialect actually in force: the user's override when they have set one,
+   otherwise whatever the USB id said. Everything that depends on the wire
+   format must agree on this one answer. An encoder that honours the override
+   while the editor's limits ignore it is how you get a write that throws
+   halfway through, with some slots already changed on the device. */
+const effDialect = () => forcedDialect || dialect;
+const effCaps    = () => DIALECT_CAPS[effDialect()] || DIALECT_CAPS[IMPLEMENTED_DIALECT];
+
+const stepLimit = () => effCaps().maxSteps ?? MAX_STEPS;
+const delayOK   = () => effCaps().delay !== false;
+
+const keySlot  = i => i + 1;
+/* Where knob slots start. This moves with the dialect (13, 16 or 17), so no
+   caller may assume 16 — least of all one turning a slot back into a name. */
+const knobBase = d => DIALECT_CAPS[d || effDialect()]?.knobBase ?? 16;
+
+/* Most models lay their knobs out as base + 3k + a, but not all: a layout may
+   carry an explicit `knobSlots` map when the hardware disagrees. Kept pure and
+   layout-first so it can be tested without a device. */
+const knobSlotIn = (lay, k, a, d) => lay?.knobSlots?.[k]?.[a] ?? knobBase(d) + 3 * k + a;
+const knobSlot   = (k, a, d) => knobSlotIn(layout, k, a, d);
+
+/** Which knob and action a slot belongs to, or null. Honours `knobSlots`. */
+function knobAt(slot, lay) {
+  const map = (lay || layout)?.knobSlots;
+  if (map) {
+    for (let k = 0; k < map.length; k++) {
+      const a = map[k].indexOf(slot);
+      if (a >= 0) return { knob: k + 1, action: KNOB_ACTIONS[a] };
+    }
+    return null;
+  }
+  const base = knobBase();
+  const k = Math.floor((slot - base) / 3), a = ((slot - base) % 3 + 3) % 3;
+  return slot >= base && k < MAX_KNOBS ? { knob: k + 1, action: KNOB_ACTIONS[a] } : null;
+}
+
+/* ------------------------------------------------------------------
+   Physical arrangement.
+
+   Slot ids run UP each column, starting at the bottom-left — the corner
+   furthest from the knobs, which is where the key matrix begins. On a
+   3-wide, 4-tall pad that is:
+
+       slot 4   slot 8   slot 12      <- top row, nearest the knobs
+       slot 3   slot 7   slot 11
+       slot 2   slot 6   slot 10
+       slot 1   slot 5   slot  9      <- bottom row
+
+   So slot = column * rows + (rows - row), row counted from the top.
+
+   The grid shapes below come from the model list the hardware itself
+   recognises. Only 12 keys / 2 knobs has been checked against a real
+   unit; the rest are the documented shapes for those models. If your
+   pad's keys appear in the wrong places, change the shape in the UI —
+   the mapping is derived, not hardcoded.
+   ------------------------------------------------------------------ */
+const LAYOUTS = [
+  { keys:  0, knobs: 1, cols: 0, rows: 0 },
+  { keys:  0, knobs: 2, cols: 0, rows: 0 },
+  { keys:  1, knobs: 0, cols: 1, rows: 1 },   // single-key pads; reported in issue #2
+  { keys:  2, knobs: 0, cols: 2, rows: 1 },
+  { keys:  3, knobs: 0, cols: 3, rows: 1 },
+  { keys:  3, knobs: 1, cols: 3, rows: 1 },
+  { keys:  4, knobs: 0, cols: 4, rows: 1 },
+  { keys:  4, knobs: 1, cols: 4, rows: 1 },
+  { keys:  4, knobs: 3, cols: 4, rows: 1 },
+  { keys:  5, knobs: 0, cols: 5, rows: 1 },
+  { keys:  6, knobs: 0, cols: 3, rows: 2 },
+  { keys:  6, knobs: 1, cols: 3, rows: 2 },
+  { keys:  6, knobs: 2, cols: 3, rows: 2 },
+  { keys:  9, knobs: 2, cols: 3, rows: 3 },
+  { keys:  9, knobs: 3, cols: 3, rows: 3 },
+  { keys: 11, knobs: 3, cols: 4, rows: 3 },
+  { keys: 12, knobs: 2, cols: 3, rows: 4 },   // verified on hardware
+  /* SikaiCase 1189:8842, 12 keys and 4 encoders. Verified on physical
+     hardware by @geniosid (PR #1). Two things make it unlike the others:
+     encoder 4 is stored *below* the keys at 0x0D-0x0F while encoders 1-3
+     take the usual 0x10-0x18, and it will only give up its 24 records for
+     a read addressed to 15 keys / 3 knobs. Both are self-consistent — the
+     firmware counts keys + 3*knobs, and 15 + 3*3 is the same 24 as
+     12 + 3*4 — which is good reason to trust the report. */
+  { keys: 12, knobs: 4, cols: 3, rows: 4,
+    knobSlots: [[0x10, 0x11, 0x12], [0x13, 0x14, 0x15],
+                [0x16, 0x17, 0x18], [0x0D, 0x0E, 0x0F]],
+    readAs: [15, 3] },
+  { keys: 12, knobs: 3, cols: 4, rows: 3 },
+  { keys: 15, knobs: 3, cols: 5, rows: 3 },
+  { keys: 16, knobs: 0, cols: 4, rows: 4 },   // ch57x-3 "4x4" devices
+  { keys: 16, knobs: 1, cols: 4, rows: 4 },
+  { keys: 16, knobs: 2, cols: 4, rows: 4 },
+  { keys: 16, knobs: 3, cols: 4, rows: 4 },
+];
+const DEFAULT_LAYOUT = { keys: 12, knobs: 2, cols: 3, rows: 4 };
+
+function findLayout(keys, knobs) {
+  return LAYOUTS.find(l => l.keys === keys && l.knobs === knobs) || null;
+}
+
+/* ------------------------------------------------------------------
+   Orientation.
+
+   Idea taken from ch57x-keyboard-tool, which lets a config declare how
+   the pad is physically placed. It is the generic answer to a problem
+   that bit this project twice: rather than needing a verified grid for
+   every model, the user rotates or flips the on-screen layout until it
+   matches the hardware in front of them.
+
+   The slot formula stays the hardware truth. Orientation only maps a
+   display cell to a hardware cell.
+   ------------------------------------------------------------------ */
+const ORIENTATIONS = [
+  { id: "normal",            label: "Normal" },
+  { id: "upside-down",       label: "Upside down" },
+  { id: "clockwise",         label: "Rotated 90° clockwise" },
+  { id: "counter-clockwise", label: "Rotated 90° anticlockwise" },
+];
+const isRotated = o => o === "clockwise" || o === "counter-clockwise";
+
+/** Display grid dimensions, which swap under a 90° rotation. */
+function displayGrid(l) {
+  const rot = isRotated(l.orientation);
+  return { rows: rot ? l.cols : l.rows, cols: rot ? l.rows : l.cols };
+}
+
+/** DOM order (left to right, top to bottom) -> slot id. 0 means no key. */
+function gridOrder(l) {
+  const o = l.orientation || "normal";
+  const { rows: dR, cols: dC } = displayGrid(l);
+  const order = [];
+  for (let dr = 0; dr < dR; dr++)
+    for (let dc = 0; dc < dC; dc++) {
+      let hr, hc;
+      switch (o) {
+        case "upside-down":       hr = l.rows - 1 - dr; hc = l.cols - 1 - dc; break;
+        case "clockwise":         hr = l.rows - 1 - dc; hc = dr;              break;
+        case "counter-clockwise": hr = dc;              hc = l.cols - 1 - dr; break;
+        default:                  hr = dr;              hc = dc;
+      }
+      const slot = hc * l.rows + (l.rows - hr);
+      order.push(slot >= 1 && slot <= l.keys ? slot : 0);
+    }
+  return order;
+}
+
+/** Knob display order. A flip or a clockwise turn reverses it. */
+function knobOrder(l) {
+  const idx = [...Array(l.knobs).keys()];
+  const o = l.orientation || "normal";
+  return (o === "upside-down" || o === "clockwise") ? idx.reverse() : idx;
+}
+
+/** The UI speaks positions; the wire speaks slots. */
+function posOfSlot(l) {
+  const m = new Map();
+  gridOrder(l).forEach((slot, i) => { if (slot) m.set(slot, i + 1); });
+  return m;
+}
+
+/* ==================================================================
+   State
+   ================================================================== */
+const STORE_KEY = "macropad-rebind.profile.v1";
+
+function blankProfile() {
+  return {
+    // Which numbering the slot keys below are in; see alignKnobBase.
+    knobBase: 16,
+    layers: Array.from({ length: N_LAYERS }, () => ({
+      bindings: {},                        // slot id -> binding
+      led: { mode: "backlight", color: 1 },
+    })),
+  };
+}
+
+let layout = loadLayout();
+let profile = loadProfile();
+let layer = 0;
+let sel = null;              // { slot, label }
+let device = null;
+let dialect = IMPLEMENTED_DIALECT;   // detected from the device on connect
+let forcedDialect = null;            // user override; see the format selector
+let formatHintShown = false;         // reveal the format selector once it matters
+let verified = false;      // device has answered 0xFB with a usable layout
+let captureArmed = false;
+
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY) || localStorage.getItem("rebind.profile.v1")
+                || localStorage.getItem("keypad-bench.profile.v1");
+    if (!raw) return blankProfile();
+    const p = JSON.parse(raw);
+    if (!p || !Array.isArray(p.layers) || p.layers.length !== N_LAYERS) return blankProfile();
+    for (const l of p.layers) {
+      if (!l.bindings || typeof l.bindings !== "object") l.bindings = {};
+      if (!l.led) l.led = { mode: "backlight", color: 1 };
+    }
+    return p;
+  } catch { return blankProfile(); }
+}
+const LAYOUT_KEY = "macropad-rebind.layout.v1";
+function loadLayout() {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY) || localStorage.getItem("rebind.layout.v1")
+                || localStorage.getItem("keypad-bench.layout.v1");
+    if (!raw) return { ...DEFAULT_LAYOUT };
+    const l = JSON.parse(raw);
+    if (![l.keys, l.knobs, l.cols, l.rows].every(n => Number.isInteger(n) && n >= 0)) throw 0;
+    return l;
+  } catch { return { ...DEFAULT_LAYOUT }; }
+}
+function saveLayout() {
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* private mode */ }
+}
+function setLayout(l) {
+  // Orientation is a property of how the user has placed their pad, not of the
+  // model, so it survives a model change.
+  layout = { orientation: layout?.orientation || "normal", ...l };
+  saveLayout();
+}
+function setOrientation(o) { layout = { ...layout, orientation: o }; saveLayout(); }
+
+function saveProfile() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(profile)); } catch { /* private mode */ }
+}
+
+/* Bindings are stored by slot number, and a knob's slot number depends on the
+   dialect (base 13, 16 or 17). Saved work would otherwise be replayed at the
+   wrong slots on a different keypad: bind a knob on a base-13 pad, connect a
+   standard one, and those become key 13-15 bindings written to real keys. The
+   app's own "try the other command format" advice produced exactly that. So the
+   base is stamped into the saved profile and slots move when it changes. */
+function alignKnobBase() {
+  // A layout with an explicit knob map defines its own slot numbers, which do
+  // not move with the dialect. Rebasing them would scatter the bindings.
+  if (layout?.knobSlots) { profile.knobBase = knobBase(); return 0; }
+  const to = knobBase();
+  const from = Number.isInteger(profile.knobBase) ? profile.knobBase : to;
+  profile.knobBase = to;
+  if (from === to) return 0;
+  let moved = 0, clashed = 0;
+  for (const l of profile.layers) {
+    const next = {};
+    for (const [k, b] of Object.entries(l.bindings).sort((x, y) => x[0] - y[0])) {
+      const slot = Number(k);
+      const dest = slot >= from ? slot - from + to : slot;
+      // Shrinking the base can aim a knob at a slot a key already holds. The
+      // key is the one the hardware will actually read, so it wins.
+      if (dest !== slot && next[dest] !== undefined) { clashed++; continue; }
+      if (dest !== slot) moved++;
+      next[dest] = b;
+    }
+    l.bindings = next;
+  }
+  if (moved || clashed) {
+    log(`This keypad numbers knob slots from ${to}, the last one from ${from} — ` +
+        `moved ${moved} knob binding(s) to match.`, "w");
+    if (clashed) log(`${clashed} could not be moved because a key already uses that ` +
+                     `slot; check your knob bindings.`, "w");
+    sel = null;
+    saveProfile();
+  }
+  return moved;
+}
+
+const curLayer  = () => profile.layers[layer];
+const bindingFor = slot => curLayer().bindings[slot] || null;
+
+/* ==================================================================
+   Binding -> human label
+   ================================================================== */
+function modLabel(mask) {
+  return MODIFIERS.filter(m => mask & m.bit).map(m => m.label).join("+");
+}
+function stepLabel(s) {
+  const mods = modLabel(s.mods);
+  const key  = s.code ? (KEY_BY_CODE.get(s.code) || "0x" + s.code.toString(16)) : "";
+  return [mods, key].filter(Boolean).join("+") || "—";
+}
+function bindingLabel(b) {
+  if (!b) return "unset";
+  if (b.type === "key")   return b.steps.map(stepLabel).join(" , ");
+  if (b.type === "media") return (MEDIA.find(m => m[1] === b.media) || ["media"])[0];
+  if (b.type === "mouse") {
+    const btn = ["", "Left", "Right", "", "Middle"][b.buttons] || "";
+    if (b.action === "click") return "Click " + (btn || b.buttons);
+    if (b.action === "wheel") return "Wheel " + (b.wheel > 0 ? "+" : "") + b.wheel;
+    if (b.action === "move")  return `Move ${b.dx},${b.dy}`;
+    if (b.action === "drag")  return `Drag ${btn} ${b.dx},${b.dy}`;
+  }
+  if (b.type === "raw") return "raw " + hex(b.raw.slice(3, 8));
+  return "unset";
+}
+
+/* ==================================================================
+   Message building
+   ================================================================== */
+function msg(bytes) {
+  if (bytes.length > REPORT_LEN) throw new Error("report overflow");
+  const out = new Uint8Array(REPORT_LEN);
+  out.set(bytes, 0);
+  return out;
+}
+
+/* ------------------------------------------------------------------
+   Report framing.
+
+   Every model this tool was built against takes output report id 3 at
+   64 bytes. Not every model does, and Chrome refuses a write *before it
+   reaches the device* when the framing disagrees with the device's HID
+   descriptor: a report longer than the declared output report, a report
+   id sent to a device that declares none (or the reverse), or any output
+   report at all to a device that declares only feature reports. All of
+   those surface as the same bare "Failed to write the report." — for
+   every command format alike, because the payload never gets a look in.
+   Issue #3 was exactly that: a 1189:8890 refusing all three formats in
+   under a second, without one byte leaving the browser.
+
+   WebHID exposes the parsed descriptor, so the framing is read from it.
+   A device declaring output report 3 at 64 bytes — every verified unit —
+   gets byte-for-byte what it always got, and so does one whose platform
+   reports no descriptor detail at all.
+   ------------------------------------------------------------------ */
+const reportBytes = r => Math.ceil((r?.items || [])
+  .reduce((n, it) => n + (it.reportSize || 0) * (it.reportCount || 0), 0) / 8);
+
+/** The collection that carries configuration: the vendor page, else the first. */
+const configCollection = dev =>
+  (dev?.collections || []).find(c => c.usagePage === 0xff00) || dev?.collections?.[0] || null;
+
+const DEFAULT_FRAMING = { id: REPORT_ID, len: REPORT_LEN, prefix: null,
+                          why: "the framing verified on real hardware" };
+
+/** How writes must be framed for this device, from its descriptor. */
+function framingFor(dev) {
+  const col  = configCollection(dev);
+  const outs = col?.outputReports;
+  // No descriptor detail: keep what is verified rather than guess.
+  if (!Array.isArray(outs)) return DEFAULT_FRAMING;
+  if (!outs.length) {
+    const feats = col.featureReports || [];
+    return { ...DEFAULT_FRAMING, none: true,
+             why: feats.length ? "declares only feature reports" : "declares no output reports" };
+  }
+  const three = outs.find(r => r.reportId === REPORT_ID);
+  if (three) {
+    const len = reportBytes(three) || REPORT_LEN;
+    return len === REPORT_LEN ? DEFAULT_FRAMING
+      : { id: REPORT_ID, len, prefix: null, why: `output report ${REPORT_ID} is ${len} bytes` };
+  }
+  const bare = outs.find(r => !r.reportId);
+  if (bare) {
+    // No report ids at all. The protocol's leading 0x03 then travels as the
+    // first data byte — which is what a tool writing straight to the USB
+    // endpoint sends — rather than as an id the device never declared.
+    return { id: 0, len: reportBytes(bare) || REPORT_LEN, prefix: REPORT_ID,
+             why: "declares no report ids, so 0x03 is sent as the first data byte" };
+  }
+  // Only other ids. Choosing one would be a guess about which carries
+  // configuration; keep the default and let the log say why it fails.
+  return { ...DEFAULT_FRAMING, other: outs.map(r => r.reportId),
+           why: `declares output report id ${outs.map(r => r.reportId).join(", ")}, not ${REPORT_ID}` };
+}
+
+/** Apply a framing to one message. Throws rather than cut real content. */
+function frame(report, f) {
+  const body = f.prefix != null ? Uint8Array.of(f.prefix, ...report) : report;
+  if (body.length > f.len && body.subarray(f.len).some(b => b !== 0))
+    throw new Error(`message does not fit this keypad's ${f.len}-byte report`);
+  const data = new Uint8Array(f.len);
+  data.set(body.subarray(0, f.len));
+  return { id: f.id, data };
+}
+
+/** The reverse of frame(): the message inside an incoming report. On a
+    device with no report ids the leading 0x03 arrives as data, just as it
+    was sent. Stripped only when it is actually there — replies begin with
+    the command they answer (0xFB, 0xFA), never 0x03 — so a device that
+    does not echo it is read correctly either way. */
+function unframe(reportId, bytes, f) {
+  return f.prefix != null && !reportId && bytes[0] === f.prefix ? bytes.subarray(1) : bytes;
+}
+
+let framing = DEFAULT_FRAMING;       // replaced from the descriptor on connect
+
+/** All reports needed to program one slot. */
+function bindingReports(slot, b) {
+  const d = effDialect();
+  if (d === "ch57x-2") return ch2Reports(slot, b, layer);
+  if (d === "ch57x-3") return ch3Reports(slot, b, layer);
+
+  const head = [CMD_WRITE, slot, layer + 1];
+  let m;
+
+  // A binding that came off the device and has not been edited is written
+  // back byte for byte. The read reply and the write message share a layout
+  // — only byte 0 differs (0xFA vs 0xFE) — so re-encoding it through our own
+  // model could silently change fields we have not fully decoded.
+  if (b._raw) {
+    const reports = [msg([CMD_WRITE, ...b._raw.slice(1)])];
+    reports.push(msg([CMD_SEP, CMD_SEP]));
+    reports.push(msg([CMD_COMMIT, 0xFE, 0xFF]));
+    reports.push(msg([CMD_SEP, CMD_SEP]));
+    return reports;
+  }
+
+  if (b.type === "key") {
+    const steps = b.steps.slice(0, MAX_STEPS);
+    // A lone modifier-only step is sent with count 0 so it can combine
+    // with a following key.
+    const count = (steps.length === 1 && !steps[0].code) ? 0 : steps.length;
+    const body = [];
+    for (const s of steps) body.push(s.mods & 0xff, s.code || 0);
+    m = [...head, TYPE_KEYBOARD, 0,0,0,0,0, count, ...body];
+
+  } else if (b.type === "media") {
+    const c = b.media & 0xffff;
+    m = [...head, TYPE_MEDIA, 0,0,0,0,0, 0, c & 0xff, (c >> 8) & 0xff, 0,0,0,0];
+
+  } else if (b.type === "mouse") {
+    const mod = b.mod || 0;
+    const btn = b.buttons || 0;
+    if (b.action === "click")      m = [...head, TYPE_MOUSE, 0,0,0,0,0, 0x01, mod, btn];
+    else if (b.action === "wheel") m = [...head, TYPE_MOUSE, 0,0,0,0,0, 0x03, mod, 0, 0, 0, i8(b.wheel)];
+    else if (b.action === "move")  m = [...head, TYPE_MOUSE, 0,0,0,0,0, 0x05, mod, 0, i8(b.dx), i8(b.dy)];
+    else                           m = [...head, TYPE_MOUSE, 0,0,0,0,0, 0x05, mod, btn, i8(b.dx), i8(b.dy)];
+
+  } else if (b.type === "raw") {
+    m = [CMD_WRITE, ...b.raw.slice(1)];
+
+  } else {
+    return [];
+  }
+
+  const reports = [msg(m)];
+  if (b.type === "key" && b.delay > 0) {
+    const d = Math.min(6000, b.delay | 0);
+    reports.push(msg([...head, TYPE_DELAY, d & 0xff, (d >> 8) & 0xff]));
+  }
+  reports.push(msg([CMD_SEP, CMD_SEP]));
+  reports.push(msg([CMD_COMMIT, 0xFE, 0xFF]));
+  reports.push(msg([CMD_SEP, CMD_SEP]));
+  return reports;
+}
+
+/* ------------------------------------------------------------------
+   ch57x-2 encoder (1189:8890), ported from ch57x-keyboard-tool's
+   src/keyboard/k8890.rs.
+
+   Different again from both other dialects:
+     - a "start key binding" preamble precedes every binding
+     - the layer lives in the HIGH nibble of byte 1, with the macro
+       kind in the low nibble
+     - a keyboard binding is sent as one message per press, with an
+       extra empty (0, 0) press prepended for reasons nobody records
+     - at most 5 presses, and no inter-step delay at all
+     - keys are 1..12 and knob actions start at 13
+     - finish is a single AA AA, no FD FE FF commit
+
+   NOT verified against hardware. Where the two available references
+   disagree this follows k8890.rs, the more widely used one; the
+   divergences are listed in docs/PROTOCOL.md.
+   ------------------------------------------------------------------ */
+const CH2_MAX_PRESSES = 5;
+
+function ch2Reports(slot, b, layerIdx) {
+  const L = layerIdx + 1;
+  const out = [msg([CMD_WRITE, L, 0x01, 0x01, 0, 0, 0, 0])];   // start
+
+  if (b.type === "key") {
+    if (b.steps.length > CH2_MAX_PRESSES)
+      throw new Error(`too long for this device: ${b.steps.length} presses, ${CH2_MAX_PRESSES} max`);
+    if (b.delay > 0)
+      throw new Error("inter-step delay is not supported on this device");
+    const items = [[0, 0], ...b.steps.map(st => [st.mods & 0xff, st.code || 0])];
+    items.forEach(([mods, code], i) =>
+      out.push(msg([slot, (L << 4) | TYPE_KEYBOARD, b.steps.length, i, mods, code, 0, 0])));
+
+  } else if (b.type === "media") {
+    const c = b.media & 0xffff;
+    out.push(msg([slot, (L << 4) | TYPE_MEDIA, c & 0xff, (c >> 8) & 0xff, 0, 0, 0, 0]));
+
+  } else if (b.type === "mouse") {
+    const mod = b.mod || 0, btn = b.buttons || 0;
+    let p;
+    if (b.action === "click")      p = [btn, 0, 0, 0, mod, 0];
+    else if (b.action === "wheel") p = [0, 0, 0, i8(b.wheel), mod, 0];
+    else if (b.action === "move")  p = [0, i8(b.dx), i8(b.dy), 0, mod, 0];
+    else                           p = [btn, i8(b.dx), i8(b.dy), 0, mod, 0];   // drag
+    out.push(msg([slot, (L << 4) | TYPE_MOUSE, ...p]));
+
+  } else {
+    return [];
+  }
+  out.push(msg([CMD_SEP, CMD_SEP, 0, 0, 0, 0, 0, 0]));
+  return out;
+}
+
+/* ------------------------------------------------------------------
+   ch57x-3 encoder (514C:8850), ported from ch57x-keyboard-tool's
+   src/keyboard/k8850_4x4.rs.
+
+   Structurally unlike ch57x-1:
+     - write command 0xFD, and the header is 4 payload bytes not 10
+     - a sequence entry is 3 bytes, [0, 0, code], not a 2-byte pair
+     - modifiers are NOT a bitmask; each is its own entry, 0xF1..0xF8
+     - the 18-entry limit counts modifiers, so Ctrl+A costs two
+     - media and mouse payloads are laid out differently again
+     - mouse drag is not supported at all
+     - no LED command and no read command are known
+
+   NOT verified against hardware — nobody here has one of these.
+   ------------------------------------------------------------------ */
+const CH3_MODS  = [0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8];  // bit 0..7
+const CH3_MOUSE = { 0x01: 0xF1, 0x02: 0xF2, 0x04: 0xF3 };            // ctrl/shift/alt
+const CH3_MAX_ENTRIES = 18;
+
+function ch3Reports(slot, b, layerIdx) {
+  const head = [0xFD, slot, layerIdx + 1];
+  let m;
+
+  if (b.type === "key") {
+    const entries = [];
+    for (const st of b.steps) {
+      for (let bit = 0; bit < 8; bit++)
+        if (st.mods & (1 << bit)) entries.push(CH3_MODS[bit]);
+      entries.push(st.code || 0);
+    }
+    if (entries.length > CH3_MAX_ENTRIES)
+      throw new Error(`too long for this device: ${entries.length} entries, ` +
+                      `${CH3_MAX_ENTRIES} max (modifiers count separately)`);
+    const body = [];
+    for (const c of entries) body.push(0, 0, c);
+    m = [...head, TYPE_KEYBOARD, 0, entries.length, ...body];
+
+  } else if (b.type === "media") {
+    const c = b.media & 0xffff;
+    m = [...head, TYPE_MEDIA, 0, 2, 0, 0, c & 0xff, 0, 0, (c >> 8) & 0xff];
+
+  } else if (b.type === "mouse") {
+    if (b.action === "drag") throw new Error("mouse drag is not supported on this device");
+    const md = new Array(17).fill(0);
+    md[0] = 1; md[1] = 4;
+    md[4] = CH3_MOUSE[b.mod] || 0;
+    if (b.action === "click")      md[7]  = b.buttons || 0;
+    else if (b.action === "move") { md[10] = i8(b.dx); md[13] = i8(b.dy); }
+    else if (b.action === "wheel") md[16] = i8(b.wheel);
+    m = [...head, TYPE_MOUSE, ...md];
+
+  } else {
+    return [];
+  }
+  // One terminator, and no 0xAA separators — unlike ch57x-1.
+  return [msg(m), msg([CMD_COMMIT, 0xFE, 0xFF])];
+}
+
+/** The record this device stores for a key that does nothing. */
+function emptyReports(slot, layerIdx) {
+  return [
+    msg([CMD_WRITE, slot, layerIdx + 1, TYPE_KEYBOARD, 0,0,0,0,0, 0x01, 0x00, 0x00]),
+    msg([CMD_SEP, CMD_SEP]),
+    msg([CMD_COMMIT, 0xFE, 0xFF]),
+    msg([CMD_SEP, CMD_SEP]),
+  ];
+}
+
+/** Declare the keypad's hardware geometry. See DEVICE_VARIANTS. */
+function variantReport(keys, knobs) {
+  return msg([0xFC, 0xFC, keys & 0xff, knobs & 0xff]);
+}
+
+function ledReports(layerIdx, led) {
+  if (effDialect() === "ch57x-3") {
+    // spokino format for 514c:8850 12+2: preamble FB FB FB, then
+    // FE B0 <layer 0-based> <mode> + 17 RGB triplets (key 1 first).
+    const mode = LED_MODE_CODE[led.mode] ?? 0;
+    const rgb = LED_RGB[led.color] ?? [255, 255, 255];
+    const pkt = [CMD_WRITE, LED_SLOT, layerIdx, mode];
+    for (let i = 0; i < 17; i++) pkt.push(rgb[0], rgb[1], rgb[2]);
+    return [
+      msg([0xFB, 0xFB, 0xFB]),
+      msg(pkt),
+      msg([CMD_COMMIT, 0xFE, 0xFF]),
+    ];
+  }
+  const mode = LED_MODE_CODE[led.mode] ?? 0;
+  let code;
+  if (led.mode === "off") code = 0;
+  else if (led.mode === "backlight" && led.color === 0) code = 5;   // white is its own mode
+  else code = ((led.color & 0x0f) << 4) | mode;
+  return [
+    msg([CMD_WRITE, LED_SLOT, layerIdx + 1, 0x08, 0,0,0,0,0, 0x01, 0x00, code]),
+    msg([CMD_COMMIT, 0xFE, 0xFF]),
+  ];
+}
+
+const i8 = v => ((v | 0) + 256) & 0xff;
+const hex = u8 => Array.from(u8, b => b.toString(16).padStart(2, "0")).join(" ");
+
+/* ------------------------------------------------------------------
+   Decoding a stored record.
+
+   Confirmed against this hardware: the 0xFA reply uses the same field
+   layout as a 0xFE write, with 0xFA in byte 0.
+
+     [0] 0xFA   [1] slot   [2] layer(1-based)   [3] type
+     [9] count / mouse action   [10..] payload
+   ------------------------------------------------------------------ */
+function decodeRecord(d) {
+  const type = d[3], count = d[9];
+  const raw = Array.from(d);
+
+  if (type === TYPE_KEYBOARD) {
+    const steps = [];
+    for (let i = 0; i < Math.min(count || 1, MAX_STEPS); i++) {
+      const mods = d[10 + 2 * i], code = d[11 + 2 * i];
+      if (!mods && !code) continue;            // padding pair
+      steps.push({ mods, code });
+    }
+    if (!steps.length) return null;            // slot is genuinely empty
+    return { type: "key", steps, delay: 0, _raw: raw };
+  }
+
+  if (type === TYPE_MEDIA) {
+    const media = d[10] | (d[11] << 8);
+    if (!media) return null;
+    return { type: "media", media, _raw: raw };
+  }
+
+  if (type === TYPE_MOUSE) {
+    const action = d[9], mod = d[10], buttons = d[11];
+    // Firmware reports 0x04 for a wheel binding but accepts 0x03 when
+    // writing one. Both are decoded, and the original bytes are kept so an
+    // untouched binding round-trips exactly.
+    if (action === 0x01) return { type:"mouse", action:"click", buttons, mod, wheel:1, dx:0, dy:0, _raw: raw };
+    if (action === 0x03 || action === 0x04)
+      return { type:"mouse", action:"wheel", buttons:0, mod, wheel: s8(d[14]), dx:0, dy:0, _raw: raw };
+    if (action === 0x05)
+      return { type:"mouse", action: buttons ? "drag" : "move", buttons, mod,
+               wheel:1, dx: s8(d[12]), dy: s8(d[13]), _raw: raw };
+    return { type: "raw", raw, _raw: raw };
+  }
+
+  if (type === 0) return null;                 // never programmed
+  return { type: "raw", raw, _raw: raw };
+}
+
+const s8 = v => (v & 0x80) ? v - 256 : v;
+
+/** Drop the verbatim bytes — the binding no longer matches what's on the device. */
+function touch(b) { if (b) delete b._raw; }
+
+/* ------------------------------------------------------------------
+   Text to key steps.
+
+   The keypad sends scancodes, not characters, so what actually appears
+   depends on the keyboard layout of whatever machine it is plugged
+   into. This map assumes US layout; the shifted symbols below only hold
+   under that assumption.
+   ------------------------------------------------------------------ */
+const TEXT_MAP = (() => {
+  const m = new Map();
+  const put = (ch, code, shift) => m.set(ch, { code, mods: shift ? 0x02 : 0x00 });
+  for (let i = 0; i < 26; i++) {
+    put(String.fromCharCode(97 + i), 0x04 + i, false);   // a-z
+    put(String.fromCharCode(65 + i), 0x04 + i, true);    // A-Z
+  }
+  "1234567890".split("").forEach((c, i) => put(c, i === 9 ? 0x27 : 0x1e + i, false));
+  "!@#$%^&*()".split("").forEach((c, i) => put(c, i === 9 ? 0x27 : 0x1e + i, true));
+  const plain   = { " ":0x2c, "-":0x2d, "=":0x2e, "[":0x2f, "]":0x30, "\\":0x31,
+                    ";":0x33, "'":0x34, "`":0x35, ",":0x36, ".":0x37, "/":0x38,
+                    "\t":0x2b, "\n":0x28 };
+  const shifted = { "_":0x2d, "+":0x2e, "{":0x2f, "}":0x30, "|":0x31,
+                    ":":0x33, '"':0x34, "~":0x35, "<":0x36, ">":0x37, "?":0x38 };
+  for (const [c, k] of Object.entries(plain))   put(c, k, false);
+  for (const [c, k] of Object.entries(shifted)) put(c, k, true);
+  return m;
+})();
+
+/** Convert a string into key steps. Returns what it could not represent. */
+function textToSteps(text) {
+  const steps = [], skipped = [];
+  for (const ch of [...text]) {
+    const e = TEXT_MAP.get(ch);
+    if (e) steps.push({ mods: e.mods, code: e.code });
+    else if (!skipped.includes(ch)) skipped.push(ch);
+  }
+  return { steps, skipped, truncated: Math.max(0, steps.length - stepLimit()) };
+}
+
+/** Human name for a slot: a key by its position in the grid, or a knob action.
+    The knob base moves with the dialect, so this cannot hardcode 16 — doing so
+    turned a base-13 knob slot into "knob 0 undefined" via a negative modulo. */
+function slotName(slot, pos) {
+  if (pos.has(slot)) return `key ${pos.get(slot)}`;
+  const k = knobAt(slot);
+  return k ? `knob ${k.knob} ${k.action}` : `slot ${slot}`;
+}
+
+/** Compare the editor against a profile read from the device. */
+function diffProfiles(fromDev, toEdit, forLayout) {
+  const pos = posOfSlot(forLayout || DEFAULT_LAYOUT);
+  const rows = [];
+  for (let l = 0; l < N_LAYERS; l++) {
+    const slots = new Set([
+      ...Object.keys(fromDev.layers[l].bindings),
+      ...Object.keys(toEdit.layers[l].bindings),
+    ].map(Number));
+    for (const slot of [...slots].sort((a, b) => a - b)) {
+      const a = fromDev.layers[l].bindings[slot] || null;
+      const b = toEdit.layers[l].bindings[slot] || null;
+      const from = a ? bindingLabel(a) : null;
+      const to   = b ? bindingLabel(b) : null;
+      if (from === to) continue;
+      rows.push({
+        layer: l, slot,
+        name: `L${l + 1} ${slotName(slot, pos)}`,
+        from, to,
+        kind: !a ? "add" : !b ? "del" : "chg",
+      });
+    }
+  }
+  return rows;
+}
+
+/* ==================================================================
+   Device I/O
+   ================================================================== */
+const $ = id => document.getElementById(id);
+const logEl = $("log");
+
+function log(text, cls) {
+  const t = new Date().toLocaleTimeString("en-GB", { hour12: false });
+  const span = document.createElement("span");
+  if (cls) span.className = cls;
+  span.textContent = text;
+  const line = document.createElement("div");
+  const stamp = document.createElement("span");
+  stamp.className = "t";
+  stamp.textContent = t + "  ";
+  line.append(stamp, span);
+  if (logEl.firstChild && logEl.textContent.startsWith("Ready.")) logEl.textContent = "";
+  logEl.append(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setStatus(text, cls) {
+  const el = $("status");
+  el.textContent = text;
+  el.className = "status" + (cls ? " " + cls : "");
+}
+
+async function connect(broad) {
+  try {
+    const list = await navigator.hid.requestDevice({
+      // The retry drops every constraint, not just the vendor id. Keeping
+      // usagePage 0xFF00 here made the escape hatch useless for the case that
+      // most needs it: a keypad whose configuration collection is not on the
+      // vendor page at all, or sits on a different interface, never appears in
+      // either list and is indistinguishable from dead hardware. An unrelated
+      // device picked by mistake is not dangerous — sendReport validates the
+      // report id and length against the descriptor and throws on a mismatch —
+      // and connect() warns when the vendor page is absent.
+      filters: broad
+        ? []
+        : VENDOR_IDS.map(vendorId => ({ vendorId, usagePage: 0xff00, usage: 0x01 })),
+    });
+    if (!list.length) {
+      log("No device picked.", "w");
+      if (!broad) log('If your keypad was not in the list at all, try "Device not listed?".', "w");
+      log("Not listed anywhere? Many of these pads omit the USB-C CC resistors, so a " +
+          "C-to-C cable never enumerates them at all. Try an A-to-C cable.", "w");
+      log("And Bluetooth models must be plugged in — the config interface is USB only.", "w");
+      return;
+    }
+    device = list[0];
+    if (!device.opened) await device.open();
+    // Framing first: everything sent from here on, the wake-up included, has
+    // to match what this device's descriptor declares.
+    framing = framingFor(device);
+    device.addEventListener("inputreport", onInput);
+    // ch57x-keyboard-tool sends an all-zero report right after claiming the
+    // interface, before anything else. Harmless (0x00 is not a command) and
+    // apparently needed by some units, so do the same.
+    try { const w = frame(new Uint8Array(REPORT_LEN), framing);
+          await device.sendReport(w.id, w.data); } catch { /* not fatal */ }
+    setStatus("connected", "on");
+    log(`Opened ${device.productName || "keypad"} — ` +
+        `${(device.vendorId || 0).toString(16).padStart(4,"0")}:` +
+        `${(device.productId || 0).toString(16).padStart(4,"0")}, ` +
+        `${device.collections.length} collection(s).`, "g");
+    // Which collection matters: the config lives on the vendor page 0xFF00, and
+    // a pad whose only collection is Consumer or Keyboard will swallow every
+    // write in silence. Worth one line in the log so a bug report can say so.
+    const pages = (device.collections || [])
+      .map(c => "0x" + (c.usagePage || 0).toString(16).padStart(4, "0").toUpperCase());
+    log(`HID usage page(s): ${pages.join(", ") || "none reported"}.`);
+
+    // What the configuration interface actually declares — the one piece of
+    // information that settles a "Failed to write the report" on sight.
+    const cc = configCollection(device);
+    const reps = (list, kind) => (list || []).map(r => `${kind} ${r.reportId} (${reportBytes(r)} bytes)`);
+    const summary = [...reps(cc?.inputReports, "in"), ...reps(cc?.outputReports, "out"),
+                     ...reps(cc?.featureReports, "feature")];
+    if (summary.length) log(`Reports: ${summary.join(", ")}.`);
+    if (framing.none)
+      log(`This keypad ${framing.why} on its configuration interface. This tool ` +
+          `sends output reports, so the browser will refuse every write. Please open ` +
+          `an issue with this log — it is exactly what is needed to add support.`, "e");
+    else if (framing.other)
+      log(`This keypad ${framing.why}, so writes will probably be refused. Please ` +
+          `open an issue with this log.`, "w");
+    else if (framing !== DEFAULT_FRAMING)
+      log(`Framing adjusted to fit this keypad: ${framing.why}.`, "w");
+    if (pages.length && !pages.includes("0xFF00"))
+      log(`None of these is the vendor page 0xFF00 that carries the configuration. ` +
+          `Writes will probably be accepted and ignored. If you reached this through ` +
+          `"Device not listed?", try picking a different entry for the same keypad.`, "w");
+    if (!VENDOR_IDS.includes(device.vendorId))
+      log(`Vendor ${device.vendorId.toString(16)} is not one this tool knows — ` +
+          `please report it so it can be added.`, "w");
+    // Reading is enabled below, once the dialect is known — a dialect with no
+    // read command spends 7.5s in timeouts and then replaces the editor with
+    // nothing, so the button must not be live before that is settled.
+
+    // Which dialect does this one speak? Getting it wrong is silent: the
+    // device accepts well-formed messages in the wrong language and stores
+    // nothing useful. Every dialect in MODELS has an entry in DIALECT_CAPS
+    // (a test enforces it), so effCaps() always has something to return.
+    const model = modelFor(device.vendorId, device.productId);
+    dialect = model ? model.dialect : IMPLEMENTED_DIALECT;
+    const caps = effCaps();
+    // Knob slots may be numbered differently here than on the last keypad.
+    alignKnobBase();
+
+    if (dialect !== IMPLEMENTED_DIALECT) {
+      formatHintShown = true;
+      log(`Your keypad speaks a different command format from the one this tool has ` +
+          `been tested against. Support for it was written from other people's ` +
+          `research and has never been tried on real hardware.`, "w");
+      log(`You can still write to it, but at your own risk: this format has no way ` +
+          `to read the keypad back, so nothing can be checked afterwards.`, "w");
+      if (!caps.led) log(`Backlight control is unavailable for it, so those settings are switched off.`, "w");
+      log(`Set your model with the Layout dropdown — this keypad cannot be asked.`, "w");
+      log(`If the keys do not respond after writing, try the other command format ` +
+          `from the dropdown next to the model. Please report either way: ` +
+          `github.com/jvspier/macropad-rebind/issues (format id: ${dialect})`, "w");
+    }
+
+    $("btnRead").disabled = !caps.read;
+    $("btnDetect").disabled = !caps.read;
+
+    // Positively identify the device before enabling anything that writes. The
+    // picker filter is a convenience, not a guarantee — plenty of unrelated
+    // hardware exposes a vendor HID collection on this usage page, and writing
+    // to one of those could misconfigure it. Answering 0xFB with a plausible
+    // layout is proof it really does speak this protocol.
+
+    let found = null;      // needed again below, so not block-scoped
+    if (caps.read) {
+      found = await detect();
+      verified = !!found && found.keys <= caps.maxKeys && found.knobs <= MAX_KNOBS
+                 && (found.keys + found.knobs) > 0;
+    } else {
+      // Nothing to ask, so nothing to verify. Trust the user's model choice.
+      verified = true;
+    }
+    if (verified) {
+      $("btnWrite").disabled = false;
+      // Blanking and identity repair both rely on ch57x-1 specifics — the empty
+      // record shape and 0xFC — neither of which is known for other dialects.
+      $("btnBlank").disabled = !caps.tested;
+      $("btnRepair").disabled = !caps.tested;
+      const known = found && findLayout(found.keys, found.knobs);
+      if (known && (known.keys !== layout.keys || known.knobs !== layout.knobs)) {
+        setLayout(known);
+        log(`Layout adopted: ${known.keys} keys, ${known.knobs} knobs.`, "g");
+      }
+    } else if (found) {
+      // It answered, and we refused. Say so plainly: blaming the hardware for
+      // a shape this tool cannot address sent one contributor chasing a fault
+      // that was never on their desk.
+      log(`This keypad reports ${found.keys} keys and ${found.knobs} knobs, ` +
+          `which is more than this tool can currently address.`, "e");
+      log(`Writing stays disabled. Nothing is wrong with your keypad — please ` +
+          `open an issue with this line and support can be added: ` +
+          `github.com/jvspier/macropad-rebind/issues`, "w");
+    } else {
+      log("This device did not answer 0xFB with a usable layout.", "e");
+      log("Writing stays disabled — it may not be one of these keypads. Reads are still available.", "w");
+    }
+    renderAll();
+    navigator.hid.addEventListener("disconnect", e => { if (e.device === device) disconnected(); });
+  } catch (err) {
+    setStatus("error", "err");
+    log("Connect failed: " + err.message, "e");
+    if (/open|permission|access|denied/i.test(err.message)) {
+      log("On Linux this is almost always hidraw permissions. Install linux/60-ch57x-keypad.rules", "w");
+      log("into /etc/udev/rules.d/, reload, and replug. The file must be numbered below 70 —", "w");
+      log("systemd's 70-uaccess.rules is what acts on the uaccess tag.", "w");
+    }
+  }
+}
+
+function disconnected() {
+  device = null;
+  framing = DEFAULT_FRAMING;
+  dialect = IMPLEMENTED_DIALECT;
+  // The override belongs to the keypad it was chosen for. The selector hides
+  // itself when nothing is connected, so a leftover override would be applied
+  // to the next keypad with no way to see that it was set.
+  forcedDialect = null;
+  formatHintShown = false;
+  verified = false;
+  setStatus("disconnected");
+  $("btnWrite").disabled = true;
+  $("btnDetect").disabled = true;
+  $("btnRead").disabled = true;
+  $("btnBlank").disabled = true;
+  $("btnRepair").disabled = true;
+  renderLed();
+  log("Device disconnected.", "w");
+}
+
+let collector = null;
+function onInput(e) {
+  const bytes = unframe(e.reportId,
+    new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength), framing);
+  if (collector) collector.push(bytes);
+  log(`in  ${hex(bytes.subarray(0, 16))}`);
+}
+
+/** Wait for up to `want` input reports, or until `ms` elapses. */
+async function collect(want, ms) {
+  const got = [];
+  collector = got;
+  const t0 = Date.now();
+  while (got.length < want && Date.now() - t0 < ms) await sleep(15);
+  collector = null;
+  return got;
+}
+
+
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function send(report, label) {
+  const { id, data } = frame(report, framing);
+  try {
+    await device.sendReport(id, data);
+  } catch (e) {
+    // Chrome gives no reason. Say what was refused, so a report can.
+    throw new Error(`${e.message} Sent 0x${hex(report.subarray(0, 1))} as report ` +
+                    `id ${id}, ${data.length} bytes (${framing.why}). The exact reason is ` +
+                    `in chrome://device-log.`);
+  }
+  log(`out ${hex(report.subarray(0, 16))}${label ? "   " + label : ""}`);
+  await sleep(6);
+}
+
+/** Show the diff and resolve true if the user confirms. */
+function confirmDiff(rows, untouched) {
+  return new Promise(resolve => {
+    const dlg = $("diffDlg"), body = $("diffBody");
+    // writeAll filters "del" rows out before calling: a slot the editor has no
+    // binding for is left alone, not cleared. The seed keeps the tally honest
+    // rather than NaN should another caller ever pass one.
+    const counts = rows.reduce((a, r) => (a[r.kind]++, a), { add: 0, del: 0, chg: 0 });
+    $("diffSum").textContent =
+      `${counts.add} added · ${counts.chg} changed` +
+      (untouched ? ` · ${untouched} left untouched` : "");
+    body.textContent = "";
+    const t = document.createElement("table");
+    t.className = "diff";
+    t.innerHTML = "<thead><tr><th>Control</th><th>On the keypad</th><th>Will become</th></tr></thead>";
+    const tb = document.createElement("tbody");
+    for (const r of rows) {
+      const tr = document.createElement("tr");
+      tr.className = r.kind;
+      const td = (cls, text, none) => {
+        const c = document.createElement("td");
+        c.className = cls + (none ? " none" : "");
+        c.textContent = text;
+        return c;
+      };
+      tr.append(
+        td("k", r.name),
+        td("from", r.from ?? "unbound", !r.from),
+        td("to", r.to ?? "unbound", !r.to),
+      );
+      tb.append(tr);
+    }
+    t.append(tb);
+    body.append(t);
+    if (untouched) {
+      const note = document.createElement("p");
+      note.className = "hint";
+      note.style.marginTop = ".8rem";
+      note.textContent = `${untouched} binding(s) already on the keypad are not in the editor. ` +
+        `Writing leaves those exactly as they are — use "Read from keypad" first if you want to see them, ` +
+        `or "Blank this layer" if you want them gone.`;
+      body.append(note);
+    }
+
+    const done = ok => {
+      $("diffGo").onclick = null;
+      $("diffCancel").onclick = null;
+      dlg.close();
+      resolve(ok);
+    };
+    $("diffGo").onclick = () => done(true);
+    $("diffCancel").onclick = () => done(false);
+    dlg.onclose = () => resolve(false);
+    dlg.showModal();
+  });
+}
+
+/** Encode every binding in the editor and return the ones that will not fit.
+    Cheap, and it turns a half-finished write into a message. */
+function preflight() {
+  const problems = [], pos = posOfSlot(layout), saved = layer;
+  try {
+    for (let l = 0; l < N_LAYERS; l++) {
+      layer = l;
+      for (const [slot, b] of Object.entries(profile.layers[l].bindings)) {
+        if (!b) continue;
+        try { bindingReports(Number(slot), b); }
+        catch (e) { problems.push(`L${l + 1} ${slotName(Number(slot), pos)}: ${e.message}`); }
+      }
+    }
+  } finally { layer = saved; }
+  return problems;
+}
+
+async function writeAll() {
+  if (!device) return;
+  const btn = $("btnWrite");
+  btn.disabled = true;
+  try {
+    // Look before you leap: read what is actually on the device and show
+    // exactly what this write would change.
+    // Encode everything first. The encoders reject bindings that do not fit
+    // the format, and they used to do it from inside the write loop — which
+    // left the earlier slots already changed on the device and named neither
+    // the key nor the layer that stopped it.
+    const bad = preflight();
+    if (bad.length) {
+      log(`Nothing was sent. ${bad.length} binding(s) do not fit this keypad's ` +
+          `command format:`, "e");
+      for (const b of bad.slice(0, 8)) log(`   ${b}`, "e");
+      if (bad.length > 8) log(`   ... and ${bad.length - 8} more`, "e");
+      log(`Shorten them, or check the command format is right for your keypad.`, "w");
+      return;
+    }
+    if (!effCaps().read) {
+      const n = profile.layers.reduce((a, l) => a + Object.values(l.bindings).filter(Boolean).length, 0);
+      if (!n) { log("Nothing in the editor to write.", "w"); return; }
+      if (!confirm(`Write ${n} binding(s)?\n\nThis device cannot be read back, so ` +
+                   `there is no diff to show you and no way to verify afterwards. ` +
+                   `Support for it is untested.`)) { log("Write cancelled.", "w"); return; }
+    } else {
+    log("Reading current config so the changes can be shown first.", "w");
+    const onDevice = await readDeviceProfile(layout.keys, layout.knobs, false);
+    // Write only sends what the editor holds; it never clears a slot the editor
+    // has no binding for. So a "del" row is not a pending change — it is a slot
+    // that will simply be left alone, and showing it as a change is misleading.
+    const all = diffProfiles(onDevice, profile, layout);
+    const rows = all.filter(r => r.kind !== "del");
+    const untouched = all.length - rows.length;
+    if (!rows.length) {
+      log("Nothing to write — every binding in the editor already matches the keypad.", "g");
+      if (untouched) log(`${untouched} binding(s) on the keypad are not in the editor; they are left as they are.`, "w");
+      return;
+    }
+    if (!await confirmDiff(rows, untouched)) {
+      log("Write cancelled. Nothing was sent.", "w");
+      return;
+    }
+    }
+    let slots = 0;
+    const saved = layer;
+    for (let l = 0; l < N_LAYERS; l++) {
+      layer = l;
+      const lay = profile.layers[l];
+      for (const [slot, b] of Object.entries(lay.bindings)) {
+        if (!b) continue;
+        for (const r of bindingReports(Number(slot), b)) await send(r);
+        slots++;
+      }
+      if (effCaps().led)
+        for (const r of ledReports(l, lay.led)) await send(r);
+    }
+    layer = saved;
+    log(`Sent ${slots} binding${slots === 1 ? "" : "s"} and ${N_LAYERS} backlight settings.`);
+
+    // Read it straight back. "The write returned no error" is not the same as
+    // "the device stored it", and on unfamiliar variants that gap is exactly
+    // where the surprises live.
+    if (!effCaps().read) {
+      formatHintShown = true;
+      log("This keypad cannot be read back, so the write cannot be checked. Try your " +
+          "keys. If nothing happens, use the command-format dropdown next to the " +
+          "model picker and write again.", "w");
+      renderAll();
+      return;
+    }
+    log("Verifying — reading the configuration back.", "w");
+    const after = await readDeviceProfile(layout.keys, layout.knobs, false);
+    // Same rule as above: a slot the editor never had a binding for was never
+    // meant to change, so it is not a verification failure.
+    const left = diffProfiles(after, profile, layout).filter(r => r.kind !== "del");
+    if (!left.length) {
+      log("Verified — the keypad matches the editor.", "g");
+      log("Layers are switched on the keypad itself, with the button on its edge. " +
+          "If a key does not do what you set, check which layer is live.", "w");
+    } else {
+      log(`Could not confirm ${left.length} binding(s):`, "w");
+      for (const r of left.slice(0, 12))
+        log(`   ${r.name}: expected "${r.to ?? "unbound"}", read back "${r.from ?? "unbound"}"`, "w");
+      if (left.length > 12) log(`   ... and ${left.length - 12} more`, "w");
+      log("Your keypad is very probably fine — this is the tool failing to confirm, " +
+          "not evidence of a fault. Try the keys; they may well work.", "w");
+      formatHintShown = true;
+      log("If they do not work, there is a dropdown next to the model picker that " +
+          "sends a different command format. Some keypads need the other one.", "w");
+      renderAll();
+      log("If they do not, a copy of this log in a GitHub issue would help a lot.", "w");
+    }
+  } catch (err) {
+    log("Write failed: " + err.message, "e");
+  } finally {
+    btn.disabled = !device;
+  }
+}
+
+/** Write an empty binding to every key and knob action, on all layers. */
+/** Send just this layer's backlight record, without a full write. */
+async function applyLed() {
+  if (!device) return;
+  const btn = $("btnApplyLed");
+  btn.disabled = true;
+  try {
+    for (const r of ledReports(layer, curLayer().led)) await send(r);
+    log(`Backlight applied to layer ${layer + 1}.`, "g");
+  } catch (err) {
+    log("Lighting failed: " + err.message, "e");
+  } finally {
+    btn.disabled = !device;
+  }
+}
+
+async function blankKeypad() {
+  if (!device) return;
+  if (!confirm(
+    `Blank layer ${layer + 1} on the keypad?\n\n` +
+    `Every key and knob action on this layer is overwritten with an empty binding. ` +
+    `Any macros on layer ${layer + 1} will be gone from the device.\n\n` +
+    `Other layers are not touched. Export first if you have not.`)) return;
+  if (!confirm(`Last check — layer ${layer + 1} cannot be recovered from the device. Continue?`)) return;
+
+  const btn = $("btnBlank");
+  btn.disabled = true;
+  try {
+    const slots = [];
+    for (let i = 0; i < layout.keys; i++) slots.push(keySlot(i));
+    for (let k = 0; k < layout.knobs; k++) for (let a = 0; a < 3; a++) slots.push(knobSlot(k, a));
+
+    for (const slot of slots) for (const r of emptyReports(slot, layer)) await send(r);
+    curLayer().bindings = {};
+    sel = null;
+    saveProfile();
+    renderAll();
+    log(`Layer ${layer + 1} blanked — ${slots.length} slot(s). Lighting left alone.`, "g");
+  } catch (err) {
+    log("Blank failed: " + err.message, "e");
+  } finally {
+    btn.disabled = !device;
+  }
+}
+
+/** Re-declare the keypad's geometry. See DEVICE_VARIANTS for why this exists. */
+async function repairIdentity() {
+  if (!device) return;
+  const btn = $("btnRepair");
+  btn.disabled = true;
+  try {
+    log(`0xFC — declaring ${layout.keys} keys, ${layout.knobs} knobs.`, "w");
+    await send(variantReport(layout.keys, layout.knobs));
+    await sleep(250);
+    for (let l = 0; l < N_LAYERS; l++)
+      for (const r of ledReports(l, profile.layers[l].led)) await send(r);
+    await sleep(250);
+    const got = await detect();
+    if (got && got.keys === layout.keys && got.knobs === layout.knobs)
+      log(`Repaired — keypad reports ${got.keys} keys, ${got.knobs} knobs.`, "g");
+    else
+      log(`Keypad still reports ${got ? got.keys + "/" + got.knobs : "nothing"}. Try replugging it.`, "e");
+  } catch (err) {
+    log("Repair failed: " + err.message, "e");
+  } finally {
+    btn.disabled = !device;
+  }
+}
+
+function clearEditor() {
+  const n = Object.values(curLayer().bindings).filter(Boolean).length;
+  if (n && !confirm(
+    `Clear all ${n} binding(s) on layer ${layer + 1} from the editor?\n\n` +
+    `Other layers and the keypad itself are not touched.`)) return;
+  curLayer().bindings = {};
+  sel = null;
+  saveProfile();
+  renderAll();
+  log(`Layer ${layer + 1} cleared in the editor. Nothing was sent to the keypad.`, "g");
+}
+
+async function detect() {
+  log("0xFB — identify layout (read only).", "w");
+  const got = (await Promise.all([collect(1, 600), send(msg([0xFB, 0xFB, 0xFB]))]))[0];
+  if (!got.length) { log("No reply.", "w"); return null; }
+  const keys = got[0][1], knobs = got[0][2];
+  log(`Layout: ${keys} keys, ${knobs} knobs.`, "g");
+  return { keys, knobs };
+}
+
+/** The 0xFA read command for a layout. Normally just [keys, knobs], but a
+    layout may declare `readAs` when its hardware answers to something else. */
+function readCommand(keys, knobs, layerNumber) {
+  const [k, n] = findLayout(keys, knobs)?.readAs || [keys, knobs];
+  return [0xFA, k, n, layerNumber];
+}
+
+/** Pull every stored record off the device and return it as a profile. */
+async function readDeviceProfile(keys, knobs, verbose) {
+  const want = keys + 3 * knobs;
+  const next = blankProfile();
+  for (let l = 0; l < N_LAYERS; l++) {
+    if (verbose) log(`0xFA — reading layer ${l + 1} (read only).`, "w");
+    const got = (await Promise.all([
+      collect(want, 2500),
+      send(msg(readCommand(keys, knobs, l + 1))),
+    ]))[0];
+    for (const d of got) {
+      // Layer 3 comes back out of order on this hardware, so trust the slot
+      // byte in the reply rather than the arrival order.
+      const slot = d[1];
+      // A three-knob pad reaches slot 24 (base 16 + 3 knobs). The old ceiling
+      // of 21 silently dropped knob 3 on read, and the write verification then
+      // reported those bindings as missing on every single write.
+      if (!slot || slot > knobBase() + 3 * MAX_KNOBS - 1) continue;
+      const b = decodeRecord(d);
+      if (b) next.layers[l].bindings[slot] = b;
+    }
+    if (verbose) log(`layer ${l + 1}: ${got.length} record(s), ${Object.keys(next.layers[l].bindings).length} bound.`);
+  }
+  return next;
+}
+
+/** Read every stored record and load it into the editor. */
+async function readAll() {
+  if (!device) return;
+  const btn = $("btnRead");
+  btn.disabled = true;
+  try {
+    const bound = Object.values(profile.layers).reduce(
+      (n, l) => n + Object.values(l.bindings).filter(Boolean).length, 0);
+    if (bound && !confirm(
+      `Replace the ${bound} binding(s) currently in the editor with what is on the keypad?\n\n` +
+      `Nothing is written to the device. Export first if you want to keep them.`)) {
+      return;
+    }
+
+    const found = await detect();
+    // Adopt whatever the device reports, so this works on any model.
+    const keys  = found?.keys  ?? layout.keys;
+    const knobs = found?.knobs ?? layout.knobs;
+    if (found && (found.keys !== layout.keys || found.knobs !== layout.knobs)) {
+      const known = findLayout(keys, knobs);
+      setLayout(known || { keys, knobs, cols: Math.min(keys, 3) || 1,
+                           rows: Math.ceil(keys / (Math.min(keys, 3) || 1)) });
+      log(`Layout adopted from the device: ${keys} keys, ${knobs} knobs` +
+          (known ? "." : " — grid shape is a guess, correct it above if the keys look wrong."), known ? "g" : "w");
+    }
+    const want  = keys + 3 * knobs;
+
+    const next = await readDeviceProfile(keys, knobs, true);
+    const total = next.layers.reduce((n, l) => n + Object.keys(l.bindings).length, 0);
+
+    // Backlight is not reported by 0xFA — keep whatever was set here.
+    for (let l = 0; l < N_LAYERS; l++) next.layers[l].led = profile.layers[l].led;
+
+    profile = next;
+    sel = null;
+    saveProfile();
+    renderAll();
+    log(`Loaded ${total} binding(s) from the keypad.`, "g");
+  } catch (err) {
+    log("Read failed: " + err.message, "e");
+  } finally {
+    btn.disabled = !device;
+  }
+}
+
+/* ==================================================================
+   Rendering — device
+   ================================================================== */
+/* Sources disagree about what some devices accept — most sharply for 1189:8890,
+   where two open-source tools use the ch57x-2 format while the vendor's own
+   decompiled software uses the ch57x-1 one. Rather than pick blind, let the user
+   try the other. Useful for any future variant too. */
+function renderFormatPick() {
+  const el = $("formatPick");
+  el.textContent = "";
+  const auto = new Option(`Command format: automatic (${dialectName(dialect)})`, "");
+  auto.title = `Detected ${dialect} from your keypad's USB id`;
+  if (!forcedDialect) auto.selected = true;
+  el.append(auto);
+  for (const id of Object.keys(DIALECT_CAPS)) {
+    const opt = new Option(`Command format: ${dialectName(id)}`, id);
+    opt.title = id;
+    if (forcedDialect === id) opt.selected = true;
+    el.append(opt);
+  }
+  // Only worth showing once it might actually be needed.
+  const caps = effCaps();
+  const show = !!device && (forcedDialect || caps.tested === false || formatHintShown);
+  $("formatWrap").classList.toggle("hidden", !show);
+
+  // Explain it in terms of the one identifier a person can actually look up:
+  // the USB id. The ch57x-N names are another project's internal grouping of
+  // message formats — they are not printed on the device, not in the shop
+  // listing, and not derivable from it. Naming them here would look precise
+  // and tell the reader nothing they could act on.
+  const hint = $("formatHint");
+  hint.classList.toggle("hidden", !show);
+  if (show) {
+    const id = device
+      ? `${(device.vendorId||0).toString(16).padStart(4,"0")}:${(device.productId||0).toString(16).padStart(4,"0")}`
+      : "unknown";
+    hint.innerHTML =
+      `<b>Command format.</b> Chosen from your keypad's USB id (<code>${id}</code>). ` +
+      `Not every model of these keypads takes the same commands, and for some there is ` +
+      `no way to tell but to try. <b>If your keys do not respond after writing, pick the ` +
+      `other format above and write again.</b>`;
+  }
+}
+
+function renderOrientPick() {
+  const el = $("orientPick");
+  el.textContent = "";
+  for (const o of ORIENTATIONS) {
+    const opt = new Option(`Orientation: ${o.label.toLowerCase()}`, o.id);
+    opt.title = "How your keypad is physically placed — rotates the on-screen grid";
+    if ((layout.orientation || "normal") === o.id) opt.selected = true;
+    el.append(opt);
+  }
+}
+
+function renderLayoutPick() {
+  const sel2 = $("layoutPick");
+  sel2.textContent = "";
+  let matched = false;
+  // A layout with more keys than the dialect allows is not merely wrong, it is
+  // ambiguous: on a standard pad keySlot(15) and knobSlot(0, "ccw") are both
+  // slot 16, so a 16-key choice makes one binding appear in two places and each
+  // edit overwrite the other. maxKeys is always below the knob base, so this
+  // filter is exactly the no-collision condition.
+  const fits = LAYOUTS.filter(l => l.keys <= effCaps().maxKeys);
+  for (const l of fits) {
+    const label = l.keys
+      ? `Model: ${l.keys} keys, ${l.knobs} knob${l.knobs === 1 ? "" : "s"} — ${l.cols}\u00d7${l.rows}`
+      : `Model: ${l.knobs} knob${l.knobs === 1 ? "" : "s"} only`;
+    const o = new Option(label, `${l.keys}/${l.knobs}`);
+    o.title = "How many keys and knobs your keypad has, and how they are arranged";
+    if (l.keys === layout.keys && l.knobs === layout.knobs) { o.selected = true; matched = true; }
+    sel2.append(o);
+  }
+  if (!matched) {
+    const o = new Option(`Model: ${layout.keys} keys, ${layout.knobs} knobs — not a known model`, "custom");
+    o.selected = true;
+    sel2.append(o);
+  }
+}
+
+function renderTabs() {
+  const wrap = $("layerTabs");
+  wrap.textContent = "";
+  for (let l = 0; l < N_LAYERS; l++) {
+    const n = Object.values(profile.layers[l].bindings).filter(Boolean).length;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.role = "tab";
+    b.setAttribute("aria-selected", l === layer ? "true" : "false");
+    b.textContent = `Layer ${l + 1}${n ? ` · ${n}` : ""}`;
+    b.onclick = () => { layer = l; sel = null; renderAll(); };
+    wrap.append(b);
+  }
+}
+
+function renderGrid() {
+  const g = $("grid");
+  g.textContent = "";
+  const dg = displayGrid(layout);
+  g.style.gridTemplateColumns = `repeat(${Math.max(1, dg.cols)}, minmax(0, 1fr))`;
+  g.style.width = `min(100%, ${Math.max(1, dg.cols) * 112}px)`;
+  gridOrder(layout).forEach((slot, i) => {
+    const pos = i + 1;
+    if (!slot) { g.append(document.createElement("div")); return; }
+    const b = bindingFor(slot);
+    const cap = document.createElement("button");
+    cap.type = "button";
+    cap.className = "keycap" + (b ? " bound" : " empty") + (sel?.slot === slot ? " sel" : "");
+    const kn = document.createElement("span");
+    kn.className = "kn";
+    kn.textContent = "K" + pos;
+    const kv = document.createElement("span");
+    kv.className = "kv";
+    kv.textContent = b ? bindingLabel(b) : "unset";
+    cap.append(kn, kv);
+    cap.title = `Key ${pos} (device slot ${slot}) — ` + (b ? bindingLabel(b) : "unbound");
+    cap.onclick = () => select(slot, "Key " + pos);
+    g.append(cap);
+  });
+  $("layoutName").textContent = layout.keys
+    ? `${layout.keys} keys · ${layout.knobs} knob${layout.knobs === 1 ? "" : "s"}`
+    : `${layout.knobs} knob${layout.knobs === 1 ? "" : "s"}`;
+}
+
+function renderKnobs() {
+  const wrap = $("knobs");
+  wrap.textContent = "";
+  knobOrder(layout).forEach((k, kpos) => {
+    const box = document.createElement("div");
+    box.className = "knob";
+
+    const dial = document.createElement("div");
+    dial.className = "knob-dial";
+    const pressSlot = knobSlot(k, 1);
+    const pb = document.createElement("button");
+    pb.type = "button";
+    pb.textContent = KNOB_GLYPH.press;
+    pb.className = (bindingFor(pressSlot) ? "bound" : "") + (sel?.slot === pressSlot ? " sel" : "");
+    pb.title = `Knob ${kpos + 1} press — ` + bindingLabel(bindingFor(pressSlot));
+    pb.onclick = () => select(pressSlot, `Knob ${kpos + 1} press`);
+    dial.append(pb);
+
+    const rot = document.createElement("div");
+    rot.className = "knob-rot";
+    for (const a of [0, 2]) {
+      const slot = knobSlot(k, a);
+      const rb = document.createElement("button");
+      rb.type = "button";
+      rb.textContent = KNOB_GLYPH[KNOB_ACTIONS[a]];
+      rb.className = (bindingFor(slot) ? "bound" : "") + (sel?.slot === slot ? " sel" : "");
+      rb.title = `Knob ${kpos + 1} ${KNOB_ACTIONS[a]} — ` + bindingLabel(bindingFor(slot));
+      rb.onclick = () => select(slot, `Knob ${kpos + 1} ${KNOB_ACTIONS[a]}`);
+      rot.append(rb);
+    }
+
+    const lbl = document.createElement("span");
+    lbl.className = "knob-label";
+    lbl.textContent = "Knob " + (kpos + 1);
+
+    box.append(dial, rot, lbl);
+    wrap.append(box);
+  });
+}
+
+function renderLed() {
+  const led = curLayer().led;
+  $("ledMode").value = led.mode;
+  $("ledColorField").classList.toggle("hidden", led.mode === "off");
+
+  const sw = $("ledColors");
+  sw.textContent = "";
+  for (const [name, css, idx] of LED_COLORS) {
+    // Colour 0 renders white in every mode, not just steady backlight —
+    // measured on hardware. So white shock, white press and so on all work.
+    if (idx === 0 && led.mode === "off") continue;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "swatch";
+    b.style.background = css;
+    b.title = name;
+    b.setAttribute("aria-pressed", led.color === idx ? "true" : "false");
+    b.onclick = () => { led.color = idx; saveProfile(); renderLed(); };
+    sw.append(b);
+  }
+
+  $("btnApplyLed").disabled = !device || !verified || !DIALECT_CAPS[dialect]?.led;
+  $("clearLayerName").textContent = `layer ${layer + 1}`;
+  $("blankLayerName").textContent = `layer ${layer + 1}`;
+  const r = ledReports(layer, led)[0];
+  $("ledCode").innerHTML = `Layer ${layer + 1} packet: <code>03 ${hex(r.subarray(0, 12))}</code>`;
+
+}
+
+/* ==================================================================
+   Rendering — editor
+   ================================================================== */
+function select(slot, label) {
+  sel = { slot, label };
+  captureArmed = false;
+  renderAll();
+}
+
+function ensureBinding(type) {
+  const l = curLayer();
+  let b = l.bindings[sel.slot];
+  if (!b || b.type !== type) {
+    b = type === "key"   ? { type:"key", steps:[], delay:0 }
+      : type === "media" ? { type:"media", media:0xe9 }
+      : { type:"mouse", action:"click", buttons:1, mod:0, wheel:1, dx:0, dy:0 };
+    l.bindings[sel.slot] = b;
+  }
+  return b;
+}
+
+function renderEditor() {
+  const host = $("editor");
+  host.textContent = "";
+  $("editorTitle").textContent = sel ? sel.label : "Nothing selected";
+  $("btnClearBinding").disabled = !sel || !bindingFor(sel.slot);
+
+  if (!sel) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "Pick a key or a knob action on the left to bind it.";
+    host.append(p);
+    return;
+  }
+
+  const b = bindingFor(sel.slot);
+  const type = b?.type || null;
+
+  {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.style.marginTop = "-.4rem";
+    p.innerHTML = `Device slot <code>${sel.slot}</code>` +
+      (posOfSlot(layout).has(sel.slot)
+        ? ` &middot; key ${posOfSlot(layout).get(sel.slot)} counting left to right, top to bottom` : "");
+    host.append(p);
+  }
+
+  if (b?._raw) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.innerHTML = `<span style="color:var(--ok)">Read from the keypad.</span> Written back byte for byte unless you change it.`;
+    host.append(p);
+  }
+  if (type === "raw") {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.innerHTML = `This slot holds a record this tool does not decode (type <code>${b.raw[3]}</code>). ` +
+                  `It is preserved exactly: <code>${hex(b.raw.slice(0, 16))}</code>`;
+    host.append(p);
+    return;
+  }
+
+  // ---- action type selector ----
+  const tf = document.createElement("div");
+  tf.className = "field";
+  tf.innerHTML = `<span class="legend">Action</span>`;
+  const seg = document.createElement("div");
+  seg.className = "seg";
+  for (const [val, lbl] of [["key","Keyboard"],["media","Media"],["mouse","Mouse"]]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = lbl;
+    btn.setAttribute("aria-pressed", type === val ? "true" : "false");
+    btn.onclick = () => { ensureBinding(val); saveProfile(); renderAll(); };
+    seg.append(btn);
+  }
+  tf.append(seg);
+  host.append(tf);
+
+  if (!type) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "Choose what this control should do.";
+    host.append(p);
+    return;
+  }
+
+  if (type === "key")   renderKeyEditor(host, b);
+  if (type === "media") renderMediaEditor(host, b);
+  if (type === "mouse") renderMouseEditor(host, b);
+
+  // The encoders throw when a binding cannot be expressed in the current
+  // format — too many steps, or a delay the device has no record for. That
+  // must not take the editor with it: unhandled, the exception escapes
+  // renderEditor -> renderAll and even connect(), which then reports a
+  // perfectly healthy keypad as "Connect failed: too long for this device".
+  // Showing the reason where the user can see it is the whole point.
+  let first = null, encErr = null;
+  try { first = bindingReports(sel.slot, b)[0]; }
+  catch (e) { encErr = e.message; }
+  if (encErr || first) {
+    const preview = document.createElement("p");
+    preview.className = "hint";
+    if (encErr) {
+      const lead = document.createElement("b");
+      lead.textContent = "This will not fit your keypad: ";
+      preview.append(lead, document.createTextNode(
+        `${encErr}. It stays in the editor, but the write stops until you shorten it.`));
+    } else {
+      preview.innerHTML = `Sends <code>03 ${hex(first.subarray(0, 16))}</code>`;
+    }
+    host.append(preview);
+  }
+}
+
+function renderKeyEditor(host, b) {
+  // draft step being composed
+  b._mods ??= 0;
+
+  const cap = document.createElement("div");
+  cap.className = "capture" + (captureArmed ? " armed" : "");
+  cap.tabIndex = 0;
+  cap.textContent = captureArmed
+    ? "Listening — press the shortcut now (Esc to stop)"
+    : "Click here, then press a key to add it";
+  cap.onclick = () => { captureArmed = !captureArmed; renderEditor(); if (captureArmed) cap.focus(); };
+  host.append(cap);
+
+  // ---- type a string, get the steps ----
+  const txtField = document.createElement("div");
+  txtField.className = "field";
+  txtField.innerHTML = `<label for="macroText">Or type the text you want</label>`;
+  const txtRow = document.createElement("div");
+  txtRow.className = "row";
+  const txt = document.createElement("input");
+  txt.type = "text";
+  txt.id = "macroText";
+  txt.placeholder = "e.g. order ";
+  const txtBtn = document.createElement("button");
+  txtBtn.type = "button";
+  txtBtn.textContent = "Add as steps";
+  txtBtn.style.flex = "0 0 auto";
+  const addText = () => {
+    const { steps, skipped, truncated } = textToSteps(txt.value);
+    if (!steps.length) { log("Nothing in that text could be typed.", "w"); return; }
+    const room = stepLimit() - b.steps.length;
+    if (room <= 0) { log(`Sequence is already full (${stepLimit()} steps).`, "w"); return; }
+    touch(b);
+    b.steps.push(...steps.slice(0, room));
+    if (skipped.length) log(`Skipped ${skipped.length} character(s) with no US-layout key: ${skipped.join(" ")}`, "w");
+    if (steps.length > room || truncated)
+      log(`Only the first ${room} character(s) fitted — ${stepLimit()} steps per key on this device.`, "w");
+    txt.value = "";
+    saveProfile();
+    renderAll();
+  };
+  txtBtn.onclick = addText;
+  txt.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); addText(); } };
+  txtRow.append(txt, txtBtn);
+  txtField.append(txtRow);
+  const txtHint = document.createElement("p");
+  txtHint.className = "hint";
+  txtHint.textContent = "Capitals and symbols get their Shift automatically. The keypad sends scancodes, " +
+    "so what actually appears depends on the keyboard layout of the machine it is plugged into — this assumes US.";
+  txtField.append(txtHint);
+  host.append(txtField);
+
+  const modField = document.createElement("div");
+  modField.className = "field";
+  modField.innerHTML = `<span class="legend">Modifiers for the next key</span>`;
+  {
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = `Named for ${PLATFORM === "mac" ? "macOS" : PLATFORM === "windows" ? "Windows" : "Linux"}, ` +
+      `which is what this browser reports. The keypad sends the same code whatever it is plugged into — ` +
+      `${modName(0x08)} is the Windows key, Command and Super all at once.`;
+    modField.append(note);
+  }
+  const mods = document.createElement("div");
+  mods.className = "mods";
+  for (const m of MODIFIERS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = m.label;
+    btn.title = ALL_NAMES[m.bit]
+      ? `${ALL_NAMES[m.bit]} — one key, named differently per system (HID bit 0x${m.bit.toString(16).padStart(2,"0")})`
+      : `HID modifier bit 0x${m.bit.toString(16).padStart(2,"0")}`;
+    btn.setAttribute("aria-pressed", (b._mods & m.bit) ? "true" : "false");
+    btn.onclick = () => { b._mods ^= m.bit; renderEditor(); };
+    mods.append(btn);
+  }
+  modField.append(mods);
+  host.append(modField);
+
+  const pickRow = document.createElement("div");
+  pickRow.className = "row";
+  const keyField = document.createElement("div");
+  keyField.className = "field";
+  keyField.innerHTML = `<label for="keyPick">Key</label>`;
+  const selKey = document.createElement("select");
+  selKey.id = "keyPick";
+  selKey.append(new Option("— modifiers only —", "0"));
+  for (const k of KEYS) selKey.append(new Option(k.name, String(k.code)));
+  keyField.append(selKey);
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.textContent = "Add step";
+  addBtn.style.flex = "0 0 auto";
+  addBtn.onclick = () => addStep(b, b._mods, Number(selKey.value));
+  pickRow.append(keyField, addBtn);
+  host.append(pickRow);
+
+  // ---- sequence ----
+  const seqField = document.createElement("div");
+  seqField.className = "field";
+  seqField.innerHTML = `<span class="legend">Sequence — ${b.steps.length}/${stepLimit()}</span>`;
+  const list = document.createElement("div");
+  list.className = "steps";
+  if (!b.steps.length) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "Empty. Add at least one step.";
+    list.append(p);
+  }
+  b.steps.forEach((s, i) => {
+    const row = document.createElement("div");
+    row.className = "step";
+    const n = document.createElement("span");
+    n.className = "n";
+    n.textContent = i + 1;
+    const txt = document.createElement("span");
+    txt.className = "txt";
+    txt.textContent = stepLabel(s);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "tiny ghost";
+    del.textContent = "×";
+    del.title = "Remove";
+    del.onclick = () => { touch(b); b.steps.splice(i, 1); saveProfile(); renderAll(); };
+    row.append(n, txt, del);
+    list.append(row);
+  });
+  seqField.append(list);
+  host.append(seqField);
+
+  const dField = document.createElement("div");
+  dField.className = "field";
+  dField.innerHTML = delayOK()
+    ? `<label for="delay">Delay between steps (ms, 0–6000)</label>`
+    : `<label for="delay">Delay between steps — not supported on this device</label>`;
+  const d = document.createElement("input");
+  d.type = "number"; d.id = "delay"; d.min = "0"; d.max = "6000"; d.step = "10";
+  d.value = String(b.delay || 0);
+  d.disabled = !delayOK();
+  d.oninput = () => {
+    touch(b);
+    b.delay = Math.max(0, Math.min(6000, Number(d.value) || 0));
+    saveProfile();
+  };
+  dField.append(d);
+  host.append(dField);
+}
+
+function addStep(b, mods, code) {
+  if (!mods && !code) return;
+  touch(b);
+  if (b.steps.length >= stepLimit()) {
+    log(`Sequence is full (${stepLimit()} steps on this device).`, "w"); return;
+  }
+  b.steps.push({ mods, code });
+  b._mods = 0;
+  saveProfile();
+  renderAll();
+}
+
+function renderMediaEditor(host, b) {
+  const f = document.createElement("div");
+  f.className = "field";
+  f.innerHTML = `<label for="mediaPick">Media key</label>`;
+  const s = document.createElement("select");
+  s.id = "mediaPick";
+  for (const [name, code] of MEDIA) {
+    const o = new Option(name, String(code));
+    if (code === b.media) o.selected = true;
+    s.append(o);
+  }
+  s.onchange = () => { touch(b); b.media = Number(s.value); saveProfile(); renderAll(); };
+  f.append(s);
+  host.append(f);
+
+  const hint = document.createElement("p");
+  hint.className = "hint";
+  hint.textContent = "This is what your knobs do out of the box — volume up and down on rotation.";
+  host.append(hint);
+}
+
+function renderMouseEditor(host, b) {
+  const af = document.createElement("div");
+  af.className = "field";
+  af.innerHTML = `<span class="legend">Mouse action</span>`;
+  const seg = document.createElement("div");
+  seg.className = "seg";
+  for (const [val, lbl] of [["click","Click"],["wheel","Wheel"],["move","Move"],["drag","Drag"]]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = lbl;
+    btn.setAttribute("aria-pressed", b.action === val ? "true" : "false");
+    btn.onclick = () => { touch(b); b.action = val; saveProfile(); renderAll(); };
+    seg.append(btn);
+  }
+  af.append(seg);
+  host.append(af);
+
+  if (b.action === "click" || b.action === "drag") {
+    const bf = document.createElement("div");
+    bf.className = "field";
+    bf.innerHTML = `<span class="legend">Button</span>`;
+    const seg2 = document.createElement("div");
+    seg2.className = "seg";
+    for (const [val, lbl] of [[1,"Left"],[2,"Right"],[4,"Middle"]]) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = lbl;
+      btn.setAttribute("aria-pressed", b.buttons === val ? "true" : "false");
+      btn.onclick = () => { touch(b); b.buttons = val; saveProfile(); renderAll(); };
+      seg2.append(btn);
+    }
+    bf.append(seg2);
+    host.append(bf);
+  }
+
+  if (b.action === "wheel") {
+    host.append(numberField("Wheel delta (−127…127)", b.wheel, v => { touch(b); b.wheel = v; }, -127, 127));
+  }
+  if (b.action === "move" || b.action === "drag") {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.append(
+      numberField("dx", b.dx, v => { touch(b); b.dx = v; }, -127, 127),
+      numberField("dy", b.dy, v => { touch(b); b.dy = v; }, -127, 127),
+    );
+    host.append(row);
+  }
+}
+
+function numberField(label, value, set, min, max) {
+  const f = document.createElement("div");
+  f.className = "field";
+  const l = document.createElement("label");
+  l.textContent = label;
+  const i = document.createElement("input");
+  i.type = "number"; i.value = String(value ?? 0);
+  i.min = String(min); i.max = String(max);
+  i.oninput = () => {
+    set(Math.max(min, Math.min(max, Number(i.value) || 0)));
+    saveProfile();
+  };
+  f.append(l, i);
+  return f;
+}
+
+/* ==================================================================
+   Key capture
+   ================================================================== */
+window.addEventListener("keydown", e => {
+  if (!captureArmed || !sel) return;
+  const b = curLayer().bindings[sel.slot];
+  if (!b || b.type !== "key") return;
+
+  if (e.code === "Escape") { captureArmed = false; renderEditor(); e.preventDefault(); return; }
+
+  // Bare modifier presses just latch into the pending mask.
+  const bare = { ControlLeft:0x01, ShiftLeft:0x02, AltLeft:0x04, MetaLeft:0x08,
+                 ControlRight:0x10, ShiftRight:0x20, AltRight:0x40, MetaRight:0x80 }[e.code];
+  if (bare) { b._mods |= bare; renderEditor(); e.preventDefault(); return; }
+
+  const code = CAPTURE.get(e.code);
+  if (code === undefined) return;
+  e.preventDefault();
+  let mods = b._mods || 0;
+  if (e.ctrlKey)  mods |= 0x01;
+  if (e.shiftKey) mods |= 0x02;
+  if (e.altKey)   mods |= 0x04;
+  if (e.metaKey)  mods |= 0x08;
+  addStep(b, mods, code);
+});
+
+/* ==================================================================
+   Import / export
+   ================================================================== */
+function exportProfile() {
+  const clean = JSON.parse(JSON.stringify(profile, (k, v) => (k === "_mods" ? undefined : v)));
+  const blob = new Blob([JSON.stringify(clean, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "keypad-profile.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  log("Profile exported.", "g");
+}
+
+$("fileImport").onchange = async e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const p = JSON.parse(await file.text());
+    if (!p || !Array.isArray(p.layers) || p.layers.length !== N_LAYERS) throw new Error("not a keypad profile");
+    profile = p;
+    for (const l of profile.layers) {
+      l.bindings ||= {};
+      l.led ||= { mode: "backlight", color: 1 };
+    }
+    sel = null;
+    saveProfile();
+    renderAll();
+    log("Profile imported — nothing sent yet. Press Write to apply.", "g");
+  } catch (err) {
+    log("Import failed: " + err.message, "e");
+  }
+  e.target.value = "";
+};
+
+/* ==================================================================
+   Wire-up
+   ================================================================== */
+function renderAll() {
+  renderLayoutPick(); renderFormatPick(); renderOrientPick(); renderTabs(); renderGrid();
+  renderKnobs(); renderLed(); renderEditor();
+}
+
+$("btnConnect").onclick = () => connect(false);
+$("btnConnectAny").onclick = () => connect(true);
+$("btnWrite").onclick = writeAll;
+$("btnDetect").onclick = detect;
+$("btnRead").onclick = readAll;
+$("btnExport").onclick = exportProfile;
+$("btnClearAll").onclick = clearEditor;
+$("btnBlank").onclick = blankKeypad;
+$("btnApplyLed").onclick = applyLed;
+$("btnRepair").onclick = repairIdentity;
+$("formatPick").onchange = e => {
+  forcedDialect = e.target.value || null;
+  const eff = effDialect();
+  log(forcedDialect
+    ? `Now sending the "${dialectName(forcedDialect)}" command format (${forcedDialect}). ` +
+      `Write again and try your keys.`
+    : `Back to the automatic choice, "${dialectName(dialect)}".`, "w");
+  const caps = DIALECT_CAPS[eff];
+  if (caps && !caps.tested)
+    log(`This format has never been tested on real hardware — writing is at your own risk.`, "w");
+  // Formats disagree about where knob slots begin, so the editor's slots move.
+  alignKnobBase();
+  renderAll();
+};
+$("orientPick").onchange = e => {
+  setOrientation(e.target.value);
+  sel = null;
+  renderAll();
+  log(`Orientation set to ${e.target.value}. Bindings are unchanged — this only ` +
+      `changes how the keys are laid out on screen.`);
+};
+$("layoutPick").onchange = e => {
+  const [k, n] = e.target.value.split("/").map(Number);
+  const l = findLayout(k, n);
+  if (!l) return;
+  setLayout(l);
+  sel = null;
+  renderAll();
+  log(`Layout set to ${l.keys} keys, ${l.knobs} knobs (${l.cols}\u00d7${l.rows}).`);
+};
+$("btnImport").onclick = () => $("fileImport").click();
+$("btnClearLog").onclick = () => { logEl.textContent = "Cleared."; };
+$("btnClearBinding").onclick = () => {
+  if (!sel) return;
+  delete curLayer().bindings[sel.slot];
+  saveProfile();
+  renderAll();
+};
+$("ledMode").onchange = e => {
+  const led = curLayer().led;
+  led.mode = e.target.value;
+  saveProfile();
+  renderLed();
+};
+
+if (!("hid" in navigator)) {
+  $("noWebHID").classList.remove("hidden");
+  $("btnConnect").disabled = true;
+  $("btnConnectAny").disabled = true;
+  setStatus("unsupported", "err");
+}
+
+renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+name: Layout report
+description: Tell us whether the on-screen grid matches your hardware
+title: "Layout: <keys> keys, <knobs> knobs"
+labels: ["layout"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only the 12-key / 2-knob layout has been checked against a real unit. Every
+        other grid shape is inferred, so a report either way is genuinely useful —
+        **including "it was already correct"**, which lets us mark a model verified.
+
+  - type: input
+    id: usb-id
+    attributes:
+      label: USB vendor:product ID
+      description: "Linux: `lsusb | grep 1189`. Windows: Device Manager → Properties → Details → Hardware Ids. macOS: System Information → USB."
+      placeholder: "1189:8842"
+    validations:
+      required: true
+
+  - type: input
+    id: counts
+    attributes:
+      label: What does Detect layout report?
+      description: Connect the keypad, open the Device log panel, press **Detect layout**, and paste the line.
+      placeholder: "Layout: 12 keys, 2 knobs."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: grid-correct
+    attributes:
+      label: Did the on-screen grid match your physical keypad?
+      options:
+        - "Yes — keys were in the right places"
+        - "No — the rows were flipped top to bottom"
+        - "No — the columns were flipped left to right"
+        - "No — the grid was the wrong shape entirely (e.g. 3 wide instead of 4)"
+        - "No — something else, described below"
+    validations:
+      required: true
+
+  - type: textarea
+    id: mapping
+    attributes:
+      label: If it did not match, which key was where?
+      description: |
+        The most useful thing you can give us. Bind a few keys to distinct values, write,
+        then press them and say what came out. For example:
+
+        "I bound K1=1, K2=2, K3=3. Pressing the top-left key typed 3, the top-middle typed 2."
+
+        Or read the config back and paste the Device log.
+      render: text
+
+  - type: input
+    id: knobs
+    attributes:
+      label: Is Knob 1 the leftmost knob?
+      description: Bind knob 1 press and knob 2 press to different keys, write, then press each physical knob.
+      placeholder: "Yes / No / no knobs on my unit"
+
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else
+      description: Photo of the keypad, the name it was sold under, or what the bundled Windows software was called.

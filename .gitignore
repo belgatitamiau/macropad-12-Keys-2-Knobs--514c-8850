@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+dist/
+build/
+*.spec
+*.png
+*.jpg
+*.log
+backup-*
+screen*.png
+!web/images/*.jpg
+!web/images/*.png

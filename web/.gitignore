@@ -1,0 +1,17 @@
+# Exported keypad profiles. These contain whatever your macros type —
+# which may include passwords. Never commit one.
+*.profile.json
+keypad-profile*.json
+
+# The vendor's Windows application and its Qt/MinGW runtime are third-party
+# copyrighted binaries. They are not ours to redistribute; keep them out.
+*.exe
+*.dll
+*.o
+Makefile*
+imageformats/
+platforms/
+styles/
+
+node_modules/
+.DS_Store
