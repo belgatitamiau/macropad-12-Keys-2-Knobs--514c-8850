@@ -37,8 +37,11 @@ def hid_nodes():
         if not hid_id:
             continue
         try:
-            _, bus, vid, pid = hid_id.split("=")[1].split(":")
-            vid, pid = int(vid, 16), int(pid, 16)
+            # HID_ID=bus:vid:pid (3 fields on modern kernels, e.g. 0003:0000514C:00008850)
+            parts = hid_id.split("=")[1].split(":")
+            if len(parts) < 3:
+                continue
+            vid, pid = int(parts[1], 16), int(parts[2], 16)
         except ValueError:
             continue
         out.append(("/dev/" + os.path.basename(path), vid, pid))
