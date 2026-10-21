@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MacroPad 514c:8850</title>
+<style>
+:root{
+  --bg:#f4f5f9; --card:#ffffff; --border:#ececf3; --fg:#1b1f27; --muted:#8992a5;
+  --accent:#5b6cff; --accent-fg:#ffffff; --accent-soft:#eef0f6; --key:#fbfbfe;
+  --key-border:#e6e8f1; --input:#f0f1f6; --tabbar:#e6e8ef; --tab-on:#ffffff;
+  --pill-bg:#e7f8ef; --pill-fg:#168a52; --btn:#eef0f6; --btn-fg:#3d4658;
+  --btn-border:#e2e4ee; --shadow:0 4px 16px rgba(25,32,55,.07);
+  --key-shadow:0 2px 6px rgba(25,32,55,.06); --frame-shadow:0 18px 50px rgba(0,0,0,.25);
+}
+html[data-theme="dark"]{
+  --bg:#14171d; --card:#1b1f27; --border:#262c38; --fg:#e8eaf0; --muted:#8b94a7;
+  --accent:#5eead4; --accent-fg:#04221d; --accent-soft:#14312c; --key:#20252e;
+  --key-border:#2e3542; --input:#20252e; --tabbar:#0f1217; --tab-on:#1b1f27;
+  --pill-bg:#123a34; --pill-fg:#5eead4; --btn:#232a36; --btn-fg:#d7deea;
+  --btn-border:#2e3644; --shadow:0 6px 22px rgba(0,0,0,.35);
+  --key-shadow:0 2px 6px rgba(0,0,0,.3); --frame-shadow:0 18px 50px rgba(0,0,0,.55);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);
+     color:var(--fg);overflow:hidden;transition:background .2s,color .2s}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+button:focus{outline:none}
+
+/* ---------- layout: la ventana ES la app, sin scroll ---------- */
+.app{width:100%;height:100%;display:flex;flex-direction:column;
+     background:var(--bg);overflow:hidden}
+.top{flex:0 0 auto;padding:14px 18px 0}
+.top-inner{width:100%;max-width:860px;margin:0 auto}
+.b1{display:flex;justify-content:space-between;align-items:center;gap:12px}
+h2{font-size:16px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs{display:flex;gap:6px;background:var(--tabbar);padding:5px;border-radius:12px;
+      width:fit-content;max-width:100%;margin-top:10px;overflow:hidden}
+.tab{padding:7px 14px;border-radius:9px;font-size:12.5px;color:var(--muted);font-weight:600;
+     white-space:nowrap}
+.tab.on{background:var(--tab-on);color:var(--fg);box-shadow:0 2px 8px rgba(20,25,40,.12)}
+.body{flex:1 1 auto;min-height:0;overflow:hidden;padding:12px 18px 16px}
+.body-inner{width:100%;max-width:860px;height:100%;margin:0 auto;
+            display:flex;flex-direction:column}
+
+.pill{font-size:11.5px;padding:5px 11px;border-radius:99px;background:var(--pill-bg);
+      color:var(--pill-fg);border:1px solid var(--pill-bg);font-weight:700;white-space:nowrap}
+.pill.off{background:transparent;color:var(--muted);border-color:var(--btn-border)}
+.mini{padding:6px 10px;border-radius:9px;font-size:11.5px;font-weight:650;
+      background:var(--btn);color:var(--btn-fg);border:1px solid var(--btn-border)}
+.mini.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+
+.page{display:none}
+.page.on{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
+.card{background:var(--card);border-radius:13px;padding:13px 15px;
+      box-shadow:var(--shadow);border:1px solid var(--border)}
+.card.grow{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.card h3{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+         margin-bottom:10px;font-weight:650;flex:0 0 auto}
+.chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{padding:7px 13px;border-radius:10px;background:var(--input);color:var(--fg);
+      font-size:12.5px;border:1px solid var(--btn-border);font-weight:650}
+.chip.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.hint{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.45}
+.quick{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px}
+.quick input{flex:1;min-width:150px;padding:9px 12px;border-radius:10px;
+             background:var(--input);color:var(--fg);border:1px solid var(--btn-border);
+             font-size:13px;font-family:inherit;outline:none}
+.keys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;
+      max-width:600px;margin:0 auto;width:100%;flex:1;min-height:0;
+      grid-auto-rows:minmax(44px,78px);align-content:center}
+.key{background:var(--key);border:1px solid var(--key-border);border-radius:11px;
+     padding:8px 6px;text-align:center;font-size:10.5px;color:var(--muted);
+     box-shadow:var(--key-shadow);transition:transform .06s;
+     display:flex;flex-direction:column;justify-content:center;gap:3px;overflow:hidden}
+.key:active{transform:scale(.97)}
+.key b{display:block;color:var(--fg);font-size:12px;font-weight:650;
+       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.key.capturing,.kact.capturing,.ledkey.capturing{outline:2px solid var(--accent);
+  outline-offset:-2px}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;flex:0 0 auto}
+.btn{padding:10px 16px;border-radius:10px;font-size:12.5px;font-weight:650;
+     background:var(--btn);color:var(--btn-fg);border:1px solid var(--btn-border)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn:hover{filter:brightness(1.03)}
+
+.knobs{display:flex;gap:12px;flex-wrap:wrap;flex:1;min-height:0;align-items:center}
+.knob{flex:1 1 200px;background:var(--key);border:1px solid var(--key-border);
+      border-radius:12px;padding:10px 12px;box-shadow:var(--key-shadow)}
+.knob .dial{display:flex;justify-content:center;padding:2px 0}
+.kdial{width:112px;height:112px;border-radius:50%;background:var(--key);
+       border:2px solid var(--border);position:relative;cursor:pointer;box-shadow:var(--key-shadow)}
+.kdial::after{content:"";position:absolute;left:50%;top:16%;width:5px;height:36%;
+              border-radius:3px;background:var(--accent);transform:translateX(-50%)}
+.kdial .center{position:absolute;left:50%;top:50%;width:30px;height:30px;border-radius:50%;
+               background:var(--card);border:1px solid var(--border);transform:translate(-50%,-50%)}
+.kact{display:flex;justify-content:space-between;font-size:12px;padding:4px 8px;
+      border-radius:8px;color:var(--fg);width:100%;text-align:left;overflow:hidden}
+.kact:hover{background:var(--accent-soft)}
+.kact span{color:var(--muted);flex:0 0 auto;padding-right:8px}
+.kact b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
+
+.ledrow{display:flex;gap:16px;flex-wrap:wrap;align-items:center;flex:1;min-height:0;
+        justify-content:center}
+.ledgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:168px}
+.ledkey{aspect-ratio:1/1;border-radius:9px;border:1px solid var(--key-border);
+        background:var(--key);color:var(--muted);font-size:10px;font-weight:700}
+.swatch{width:50px;height:32px;border-radius:10px;border:1px solid var(--border)}
+canvas.picker{display:block;border-radius:8px;cursor:crosshair}
+.pickerwrap{display:flex;flex-direction:column;gap:5px}
+
+
+.bklist{flex:1;min-height:0;overflow:auto}
+.bk{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;
+    background:var(--key);border:1px solid var(--key-border);margin-bottom:8px}
+.bkinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.bkinfo b{font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;
+          white-space:nowrap}
+.bkinfo span{font-size:10.5px;color:var(--muted)}
+.bkbtns{display:flex;gap:6px;flex:0 0 auto}
+.btn.tiny{padding:6px 10px;font-size:11.5px;border-radius:8px}
+
+.banner{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+        background:var(--accent);color:var(--accent-fg);padding:10px 16px;border-radius:11px;
+        font-size:12.5px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;z-index:50}
+.banner.on{display:block}
+.log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--muted);
+     overflow:auto;line-height:1.5;flex:1;min-height:0}
+
+/* ---------- responsive ---------- */
+@media (max-width:620px){
+  .top{padding:10px 12px 0}
+  .body{padding:10px 12px 12px}
+  h2{font-size:15px}
+  .tab{padding:6px 9px;font-size:12px}
+  .card{padding:11px 12px}
+  .keys{gap:6px;grid-auto-rows:minmax(42px,64px)}
+  .key{padding:6px 4px}
+  .key b{font-size:11px}
+  .ledgrid{width:142px}
+  .banner{left:12px;right:12px;transform:none;bottom:12px;text-align:center}
+}
+@media (min-width:1100px){
+  .top-inner,.body-inner{max-width:1000px}
+  .keys{max-width:760px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="top-inner">
+      <div class="b1">
+        <h2>MacroPad 514c:8850</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="pill" class="pill off">○ sin dispositivo</span>
+          <button class="mini" id="themeBtn" title="Cambiar tema">🌙</button>
+        </div>
+      </div>
+      <div class="tabs" id="tabs">
+        <button class="tab on" data-page="keys">Teclas</button>
+        <button class="tab" data-page="knobs">Knobs</button>
+        <button class="tab" data-page="leds">LEDs</button>
+        <button class="tab" data-page="device">Dispositivo</button>
+        <button class="tab" data-page="profiles">Perfiles</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="body-inner">
+    <!-- ============ TECLAS ============ -->
+    <div class="page on" id="page-keys">
+      <div class="card">
+        <h3>Capa</h3>
+        <div class="chips" id="keysLayers"></div>
+      </div>
+      <div class="card grow">
+        <h3>Teclas</h3>
+        <div class="keys" id="keyGrid"></div>
+      </div>
+      <div class="rowbtns">
+        <button class="btn primary" data-write="keys" data-layer="cur">Aplicar teclas (capa)</button>
+        <button class="btn" data-write="keys" data-layer="all">Todas</button>
+        <button class="btn ghost" data-clear="keys">Vaciar capa</button>
+      </div>
+    </div>
+
+    <!-- ============ KNOBS ============ -->
+    <div class="page" id="page-knobs">
+      <div class="card">
+        <h3>Capa de knobs</h3>
+        <div class="chips" id="knobsLayers"></div>
+        <div class="hint">El firmware no reporta los knobs: se guardan en el perfil local y se restauran al conectar.</div>
+      </div>
+      <div class="card grow">
+        <div class="knobs" id="knobGrid"></div>
+      </div>
+      <div class="rowbtns">
+        <button class="btn primary" data-write="knobs" data-layer="cur">Aplicar knobs (capa)</button>
+        <button class="btn" data-write="knobs" data-layer="all">Todas</button>
+        <button class="btn ghost" data-clear="knobs">Vaciar capa</button>
+      </div>
+    </div>
+
+    <!-- ============ LEDS ============ -->
+    <div class="page" id="page-leds">
+      <div class="card">
+        <h3>Capa del LED</h3>
+        <div class="chips">
+          <div class="chips" id="ledLayers"></div>
+          <label class="chip" style="display:flex;gap:7px;align-items:center">
+            <input type="checkbox" id="ledAll"> Aplicar a TODAS
+          </label>
+        </div>
+        <div class="hint">Por defecto se aplica solo a la capa elegida.</div>
+      </div>
+      <div class="card">
+        <h3>Modo</h3>
+        <div class="chips" id="modes"></div>
+      </div>
+      <div class="card grow">
+        <h3>Color y LED por tecla (modo Fijo)</h3>
+        <div class="ledrow">
+          <div>
+            <canvas class="picker" id="hueBar" width="160" height="16"></canvas>
+            <canvas class="picker" id="svSquare" width="160" height="110" style="margin-top:4px"></canvas>
+          </div>
+          <div>
+            <div class="swatch" id="swatch"></div>
+            <div class="hint">Hue arriba<br>S/B abajo<br><br>Clic en tecla: asigna<br>Clic derecho: quita</div>
+          </div>
+          <div class="ledgrid" id="ledGrid"></div>
+        </div>
+      </div>
+      <div class="rowbtns">
+        <button class="btn primary" id="applyLed">Aplicar LED</button>
+        <button class="btn" id="offLed">Apagar LED</button>
+        <button class="btn ghost" id="testLed">Test</button>
+      </div>
+    </div>
+
+    <!-- ============ PERFILES ============ -->
+    <div class="page" id="page-profiles">
+      <div class="card">
+        <h3>Guardar las 3 capas</h3>
+        <div class="quick">
+          <input id="bkName" placeholder="nombre (ej. dibujo)">
+          <button class="btn primary" id="bkSave">Guardar</button>
+        </div>
+        <div class="hint">Guarda teclas + knobs de las 3 capas tal como están en el editor.</div>
+      </div>
+      <div class="card grow">
+        <h3>Backups guardados</h3>
+        <div class="bklist" id="bkList"></div>
+      </div>
+    </div>
+
+    <!-- ============ DISPOSITIVO ============ -->
+    <div class="page" id="page-device">
+      <div class="card">
+        <h3>Dispositivo</h3>
+        <div class="hint" id="deviceInfo">—</div>
+        <div class="rowbtns" style="margin-top:10px">
+          <button class="btn primary" id="connectBtn2">Conectar / Reconectar</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Acciones globales</h3>
+        <button class="btn primary" id="writeAll">Escribir TODO (3 capas)</button>
+        <div class="hint">Los botones de cada pestaña aplican solo su dominio y su capa.</div>
+      </div>
+      <div class="card">
+        <h3>Asignación rápida</h3>
+        <div class="quick">
+          <input id="quick" placeholder="macro: a · ctrl-shift-s · volumeup">
+          <button class="btn ghost" id="quickClear">Limpiar</button>
+        </div>
+        <div class="chips" style="margin-top:8px" id="quickMods"></div>
+        <div class="chips" style="margin-top:8px" id="quickMedia"></div>
+        <div class="hint">Con un macro en la barra, el clic en una tecla/knob lo asigna directo. Con la barra vacía, el clic activa la captura de input (ESC cancela).</div>
+      </div>
+      <div class="card grow">
+        <h3>Log</h3>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const api = async (path, body) => {
+  const r = await fetch(path, body === undefined ? {} : {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)});
+  return r.json();
+};
+let S = {profile: {}, settings: {theme: "light"}};
+let cur = { keys: 1, knobs: 1, led: 0, ledAll: false, mode: 1,
+            hue: 0, sat: 0, val: 1, rgb: [255,255,255], ledKeys: {} };
+let quickMods = new Set();
+let capture = null;
+let quickMacro = "";
+const KEYMAP = {
+  " ": "space", "Enter": "enter", "Backspace": "backspace", "Tab": "tab",
+  "ArrowLeft": "left", "ArrowRight": "right", "ArrowUp": "up", "ArrowDown": "down",
+  "Insert": "insert", "Delete": "delete", "Home": "home", "End": "end",
+  "PageUp": "pageup", "PageDown": "pagedown", "-": "minus", "=": "equal",
+  "AudioVolumeUp": "volumeup", "AudioVolumeDown": "volumedown", "AudioVolumeMute": "mute",
+  "MediaPlayPause": "play", "MediaTrackNext": "next", "MediaTrackPrevious": "prev",
+  "MediaStop": "stop"
+};
+function keyName(e) {
+  const k = e.key;
+  if (KEYMAP[k]) return KEYMAP[k];
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(k)) return k.toLowerCase();
+  if (k.length === 1 && /[a-zA-Z0-9]/.test(k)) return k.toLowerCase();
+  return null;
+}
+function modsOf(e) {
+  const m = [];
+  if (e.ctrlKey) m.push("ctrl");
+  if (e.shiftKey) m.push("shift");
+  if (e.altKey) m.push("alt");
+  if (e.metaKey) m.push("win");
+  return m;
+}
+const MOD_NAMES = ["ctrl","shift","alt","win","rctrl","rshift","ralt","rwin"];
+const MEDIA_NAMES = ["volumeup","volumedown","mute","play","next","prev","stop","borrar"];
+function parseBindingOk(t) {
+  t = (t || "").trim();
+  if (!t) return false;
+  if (MOD_NAMES.includes(t) || MEDIA_NAMES.includes(t)) return true;
+  return t.split(",").every(step => {
+    const parts = step.split("-").filter(Boolean);
+    let mods = 0;
+    while (parts.length && MOD_NAMES.includes(parts[0])) { parts.shift(); mods++; }
+    if (!parts.length) return mods > 0;
+    if (parts.length === 1) return /^[a-z0-9]+$/.test(parts[0]);
+    return false;
+  });
+}
+function log(msg) {
+  const l = $("#log");
+  l.textContent += new Date().toLocaleTimeString() + "  " + msg + "\n";
+  l.scrollTop = l.scrollHeight;
+}
+async function refresh() {
+  S = await api("/api/state");
+  document.documentElement.dataset.theme = (S.settings && S.settings.theme) || "light";
+  $("#themeBtn").textContent = document.documentElement.dataset.theme === "dark" ? "☀" : "🌙";
+  setConnected(S.connected, S.device, S.keys, S.knobs);
+  renderAll();
+}
+function setConnected(on, device, keys, knobs) {
+  const p = $("#pill");
+  p.textContent = on ? "● conectado" : "○ sin dispositivo";
+  p.className = "pill" + (on ? "" : " off");
+  $("#deviceInfo").textContent = on
+    ? `${device || "hidraw"} · ${keys ?? "?"} teclas · ${knobs ?? "?"} knobs`
+    : "Sin dispositivo. Conectá el pad y apretá Conectar.";
+}
+function bindOf(layer, slot) { return (S.profile?.[String(layer)] || {})[String(slot)] || ""; }
+function setBind(layer, slot, text) {
+  S.profile = S.profile || {};
+  S.profile[String(layer)] = S.profile[String(layer)] || {};
+  S.profile[String(layer)][String(slot)] = text;
+  api("/api/profile", {layers: S.profile});
+}
+const SLOT_BY_POS_ROT = [12,11,10,9,8,7,6,5,4,3,2,1];
+function chips(el, values, current, labels, cb) {
+  el.innerHTML = "";
+  values.forEach((v, i) => {
+    const b = document.createElement("button");
+    b.className = "chip" + (v === current ? " on" : "");
+    b.textContent = labels ? labels[i] : String(v);
+    b.onclick = () => cb(v);
+    el.appendChild(b);
+  });
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+}
+function renderAll() { renderKeys(); renderKnobs(); renderLeds(); }
+function renderKeys() {
+  chips($("#keysLayers"), [1,2,3], cur.keys, ["1","2","3"], v => { cur.keys = v; renderKeys(); });
+  const g = $("#keyGrid");
+  g.innerHTML = "";
+  for (let pos = 0; pos < 12; pos++) {
+    const slot = SLOT_BY_POS_ROT[pos];
+    const b = document.createElement("button");
+    b.className = "key";
+    b.innerHTML = `<span>K${pos + 1}</span><b>${escapeHtml(bindOf(cur.keys, slot) || "—")}</b>`;
+    b.onclick = () => cellClick(slot, `K${pos + 1}`, b);
+    g.appendChild(b);
+  }
+}
+function renderKnobs() {
+  chips($("#knobsLayers"), [1,2,3], cur.knobs, ["1","2","3"], v => { cur.knobs = v; renderKnobs(); });
+  const g = $("#knobGrid");
+  g.innerHTML = "";
+  const acts = [["izq",0],["undir",1],["der",2]];
+  for (let k = 0; k < 2; k++) {
+    const box = document.createElement("div");
+    box.className = "knob";
+    const dial = document.createElement("div");
+    dial.className = "dial";
+    dial.innerHTML = `<div class="kdial"><div class="center"></div></div>`;
+    const kd = dial.querySelector(".kdial");
+    kd.onclick = (e) => {
+      const r = kd.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2);
+      const dist = Math.hypot(dx, e.clientY - (r.top + r.height / 2));
+      let a = 1;
+      if (dist > 22) a = dx < -8 ? 0 : dx > 8 ? 2 : 1;
+      cellClick(16 + 3 * k + a, `Knob ${k + 1} ${acts[a][0]}`);
+    };
+    box.appendChild(dial);
+    for (const [label, a] of acts) {
+      const slot = 16 + 3 * k + a;
+      const row = document.createElement("button");
+      row.className = "kact";
+      row.innerHTML = `<span>${label}</span><b>${escapeHtml(bindOf(cur.knobs, slot) || "—")}</b>`;
+      row.onclick = () => cellClick(slot, `Knob ${k + 1} ${label}`, row);
+      box.appendChild(row);
+    }
+    g.appendChild(box);
+  }
+}
+function renderLeds() {
+  chips($("#ledLayers"), [0,1,2], cur.led, ["Capa 1","Capa 2","Capa 3"],
+        v => { cur.led = v; renderLeds(); });
+  $("#ledAll").checked = cur.ledAll;
+  chips($("#modes"), [0,1,2,3,4,5], cur.mode,
+        ["Apagado","Fijo","Reacciona","Ripple","Arcoíris","Arcoíris 2"],
+        v => { cur.mode = v; renderLeds(); });
+  const g = $("#ledGrid");
+  g.innerHTML = "";
+  for (let pos = 0; pos < 12; pos++) {
+    const slot = SLOT_BY_POS_ROT[pos];
+    const lay = String(cur.ledAll ? 2 : cur.led);
+    const rgb = (cur.ledKeys[lay] || {})[String(slot)];
+    const b = document.createElement("button");
+    b.className = "ledkey";
+    b.textContent = "K" + (pos + 1);
+    if (rgb) { b.style.background = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`; b.style.color = "#fff"; }
+    b.onclick = () => {
+      if (cur.mode !== 1) { log("El LED por tecla solo aplica en modo Fijo"); return; }
+      const layers = cur.ledAll ? ["0","1","2"] : [String(cur.led)];
+      layers.forEach(l => { cur.ledKeys[l] = cur.ledKeys[l] || {}; cur.ledKeys[l][String(slot)] = cur.rgb.slice(); });
+      renderLeds(); applyLed();
+    };
+    b.oncontextmenu = (e) => {
+      e.preventDefault();
+      const layers = cur.ledAll ? ["0","1","2"] : [String(cur.led)];
+      layers.forEach(l => { if (cur.ledKeys[l]) delete cur.ledKeys[l][String(slot)]; });
+      renderLeds(); applyLed();
+    };
+    g.appendChild(b);
+  }
+  g.style.opacity = cur.mode === 1 ? "1" : ".5";
+}
+function cellClick(slot, label, el) {
+  if (quickMacro.trim()) {
+    const text = quickMacro.trim().toLowerCase();
+    setBind(slotLayer(slot), slot, text);
+    log(`${label} ← ${text}`);
+    renderAll();
+    return;
+  }
+  startCapture(slot, label, el);
+}
+function slotLayer(slot) { return slot <= 12 ? cur.keys : cur.knobs; }
+function startCapture(slot, label, el) {
+  stopCapture();
+  capture = {slot, label, el};
+  if (el) el.classList.add("capturing");
+  const b = $("#banner");
+  b.textContent = `⏺ Apretá una tecla o botón para ${label} (ESC cancela)`;
+  b.classList.add("on");
+}
+function stopCapture() {
+  clearModTimer();
+  if (capture?.el) capture.el.classList.remove("capturing");
+  capture = null;
+  const b = $("#banner");
+  b.classList.remove("on"); b.textContent = "";
+}
+function finishCapture(text) {
+  if (!capture) return;
+  if (!parseBindingOk(text)) { log("no soportado: " + text); stopCapture(); return; }
+  const {slot, label} = capture;
+  setBind(slotLayer(slot), slot, text);
+  log(`${label} ← ${text}`);
+  stopCapture();
+  renderAll();
+}
+const MOD_BY_CODE = {ControlLeft:"ctrl", ControlRight:"rctrl", ShiftLeft:"shift",
+                     ShiftRight:"rshift", AltLeft:"alt", AltRight:"ralt",
+                     MetaLeft:"win", MetaRight:"rwin"};
+let modTimer = null;
+function clearModTimer() { if (modTimer) { clearTimeout(modTimer); modTimer = null; } }
+window.addEventListener("keydown", (e) => {
+  if (!capture) return;
+  e.preventDefault();
+  if (e.key === "Escape") { clearModTimer(); stopCapture(); log("captura cancelada"); return; }
+  // modificadores solos (ej. un knob que manda ctrl)
+  if (MOD_BY_CODE[e.code]) {
+    clearModTimer();
+    capture.mods = capture.mods || new Set();
+    capture.modOrder = capture.modOrder || [];
+    const m = MOD_BY_CODE[e.code];
+    if (!capture.mods.has(m)) { capture.mods.add(m); capture.modOrder.push(m); }
+    const b = $("#banner");
+    b.textContent = `⏺ ${capture.modOrder.join(" + ")} — soltá para asignar solo eso (o sumá una tecla)`;
+    return;
+  }
+  clearModTimer();
+  const name = keyName(e);
+  if (!name) return;
+  const mods = capture.modOrder && capture.modOrder.length ? capture.modOrder : modsOf(e);
+  finishCapture(mods.length ? mods.join("-") + "-" + name : name);
+}, true);
+window.addEventListener("keyup", (e) => {
+  if (!capture || !capture.mods) return;
+  const m = MOD_BY_CODE[e.code];
+  if (!m) return;
+  e.preventDefault();
+  capture.mods.delete(m);
+  if (capture.mods.size) return;      // todavía queda otro modificador apretado
+  // al soltar el último, asignamos lo acumulado (con una ventana corta
+  // por si venía otro modificador en camino)
+  clearModTimer();
+  modTimer = setTimeout(() => {
+    if (!capture || !capture.modOrder || !capture.modOrder.length) return;
+    finishCapture(capture.modOrder.join("-"));
+  }, 1000);
+}, true);
+window.addEventListener("mousedown", (e) => {
+  if (!capture) return;
+  e.preventDefault();
+  const n = {0:"click",1:"mclick",2:"rclick"}[e.button];
+  if (!n) return;
+  const mods = modsOf(e).filter(m => ["ctrl","shift","alt"].includes(m));
+  finishCapture(mods.length ? mods.join("-") + "-" + n : n);
+}, true);
+window.addEventListener("wheel", (e) => {
+  if (!capture) return;
+  e.preventDefault();
+  const n = e.deltaY < 0 ? "wheelup" : "wheeldown";
+  const mods = modsOf(e).filter(m => ["ctrl","shift","alt"].includes(m));
+  finishCapture(mods.length ? mods.join("-") + "-" + n : n);
+}, {capture: true, passive: false});
+window.addEventListener("contextmenu", (e) => { if (capture) e.preventDefault(); });
+window.addEventListener("blur", () => clearModTimer());
+
+function hsv2rgb(h, s, v) {
+  h = ((h % 360) + 360) % 360 / 60;
+  const i = Math.floor(h), f = h - i;
+  const p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
+  return [[v,t,p],[q,v,p],[p,v,t],[p,q,v],[t,p,v],[v,p,q]][i % 6].map(x => Math.round(x * 255));
+}
+function drawHue() {
+  const c = $("#hueBar"), ctx = c.getContext("2d");
+  const w = c.width, h = c.height;
+  for (let x = 0; x < w; x++) {
+    const [r,g,b] = hsv2rgb(x * 360 / w, 1, 1);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(x, 0, 1, h);
+  }
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(cur.hue * w / 360 - 2, 0, 4, h);
+}
+function drawSV() {
+  const c = $("#svSquare"), ctx = c.getContext("2d");
+  const w = c.width, h = c.height;
+  const img = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    const v = 1 - y / h;
+    for (let x = 0; x < w; x++) {
+      const [r,g,b] = hsv2rgb(cur.hue, x / w, v);
+      const i = (y * w + x) * 4;
+      img.data[i] = r; img.data[i+1] = g; img.data[i+2] = b; img.data[i+3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const mx = cur.sat * w, my = (1 - cur.val) * h;
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.strokeRect(mx - 5, my - 5, 10, 10);
+  ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.strokeRect(mx - 4, my - 4, 8, 8);
+}
+function paintSwatch() {
+  $("#swatch").style.background = `rgb(${cur.rgb[0]},${cur.rgb[1]},${cur.rgb[2]})`;
+}
+function updateRgb() {
+  cur.rgb = hsv2rgb(cur.hue, cur.sat, cur.val);
+  paintSwatch();
+}
+function bindPicker() {
+  const hb = $("#hueBar"), sv = $("#svSquare");
+  const pickHue = (e) => {
+    const r = hb.getBoundingClientRect();
+    cur.hue = Math.max(0, Math.min(360, (e.clientX - r.left) / r.width * 360));
+    drawSV(); updateRgb();
+  };
+  const pickSV = (e) => {
+    const r = sv.getBoundingClientRect();
+    cur.sat = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    cur.val = Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height));
+    drawSV(); updateRgb();
+  };
+  hb.addEventListener("mousedown", (e) => { pickHue(e); hb._drag = true; });
+  sv.addEventListener("mousedown", (e) => { pickSV(e); sv._drag = true; });
+  window.addEventListener("mousemove", (e) => {
+    if (hb._drag) pickHue(e);
+    if (sv._drag) pickSV(e);
+  });
+  window.addEventListener("mouseup", () => { hb._drag = false; sv._drag = false; });
+}
+async function applyLed() {
+  // los triplets del firmware van en orden de slot (triplet 0 = slot 1)
+  const colors = Array.from({length: 17}, () => [0, 0, 0]);
+  const lay = String(cur.ledAll ? 2 : cur.led);
+  for (let pos = 0; pos < 12; pos++) {
+    const slot = SLOT_BY_POS_ROT[pos];
+    const rgb = (cur.ledKeys[lay] || {})[String(slot)];
+    if (rgb) colors[slot - 1] = rgb.slice();
+  }
+  const layers = cur.ledAll ? [0,1,2] : [cur.led];
+  const res = await api("/api/led", {layers, mode: cur.mode, colors, rgb: cur.rgb});
+  log(res.error ? "ERROR: " + res.error : `LED modo=${cur.mode} capa(s) ${layers}`);
+}
+async function writeDomain(domain, layerSel) {
+  const layer = layerSel === "all" ? "all" : (domain === "keys" ? cur.keys : cur.knobs);
+  const res = await api("/api/write", {domain, layer});
+  log(res.error ? "ERROR: " + res.error : `${domain}: ${res.written} escritos (capa ${layer})`);
+}
+async function connect() {
+  const res = await api("/api/connect", {});
+  if (res.connected) { setConnected(true, res.device, res.keys, res.knobs);
+    S.profile = res.profile || S.profile; renderAll(); log("Conectado"); }
+  else { setConnected(false); log("ERROR: " + (res.error || "sin dispositivo")); }
+}
+$("#tabs").addEventListener("click", (e) => {
+  const t = e.target.closest(".tab");
+  if (!t) return;
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("on", p.id === "page-" + t.dataset.page));
+});
+$("#themeBtn").onclick = async () => {
+  const el = document.documentElement;
+  const next = el.dataset.theme === "dark" ? "light" : "dark";
+  el.dataset.theme = next;
+  $("#themeBtn").textContent = next === "dark" ? "☀" : "🌙";
+  await api("/api/settings", {theme: next});
+};
+$("#connectBtn2").onclick = connect;
+$("#ledAll").onchange = (e) => { cur.ledAll = e.target.checked; renderLeds(); };
+$("#applyLed").onclick = applyLed;
+$("#offLed").onclick = async () => {
+  const layers = cur.ledAll ? [0,1,2] : [cur.led];
+  await api("/api/led", {layers, mode: 0, rgb: [0,0,0]});
+  layers.forEach(l => delete cur.ledKeys[String(l)]);
+  renderLeds(); log(`LED apagado en capa(s) ${layers}`);
+};
+$("#testLed").onclick = async () => {
+  const layers = cur.ledAll ? [0,1,2] : [cur.led];
+  const colors = ["255,0,0","255,128,0","255,255,0","0,255,0","0,255,255","0,0,255","128,0,255","255,255,255"];
+  for (const c of colors) {
+    await api("/api/led", {layers, mode: 1, rgb: c.split(",").map(Number)});
+    await new Promise(r => setTimeout(r, 180));
+  }
+  await api("/api/led", {layers, mode: 1, rgb: cur.rgb});
+  log("Test terminado");
+};
+$("#writeAll").onclick = async () => {
+  const res = await api("/api/write", {domain: "all", layer: "all"});
+  log(res.error ? "ERROR: " + res.error : "TODO escrito (3 capas)");
+};
+document.querySelectorAll("[data-write]").forEach(b => {
+  b.onclick = () => writeDomain(b.dataset.write, b.dataset.layer);
+});
+document.querySelectorAll("[data-clear]").forEach(b => {
+  b.onclick = async () => {
+    const domain = b.dataset.clear;
+    const layer = domain === "keys" ? cur.keys : cur.knobs;
+    S.profile[String(layer)] = {};
+    const res = await api("/api/clear", {domain, layer});
+    if (!res.error) { S.profile = res.profile; renderAll(); log(`Vaciado ${domain} capa ${layer}`); }
+    else log("ERROR: " + res.error);
+  };
+});
+$("#quick").addEventListener("input", (e) => { quickMacro = e.target.value; });
+$("#quickClear").onclick = () => { quickMacro = ""; $("#quick").value = ""; quickMods.clear(); renderQuick(); };
+function renderQuick() {
+  const el = $("#quickMods");
+  el.innerHTML = "";
+  ["ctrl","shift","alt","win","rctrl","rshift","ralt","rwin"].forEach(m => {
+    const b = document.createElement("button");
+    b.className = "chip" + (quickMods.has(m) ? " on" : "");
+    b.textContent = m;
+    b.onclick = () => { quickMods.has(m) ? quickMods.delete(m) : quickMods.add(m); renderQuick(); syncQuick(); };
+    el.appendChild(b);
+  });
+  const media = $("#quickMedia");
+  media.innerHTML = "";
+  [["Vol+","volumeup"],["Vol−","volumedown"],["Mute","mute"],["Play","play"],
+   ["Next","next"],["Prev","prev"],["Stop","stop"]].forEach(([l,n]) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = l;
+    b.onclick = () => { $("#quick").value = n; quickMacro = n; };
+    media.appendChild(b);
+  });
+}
+function syncQuick() {
+  quickMacro = (quickMods.size ? [...quickMods].join("-") + "-" : "") + ($("#quick").value || "");
+}
+
+/* ---------------- backups con nombre ---------------- */
+async function loadBackups() {
+  const r = await api("/api/backups");
+  renderBackups(r.backups || []);
+}
+function renderBackups(list) {
+  const el = $("#bkList");
+  el.innerHTML = "";
+  if (!list.length) {
+    el.innerHTML = '<div class="hint" style="margin:0">Todavía no hay backups guardados.</div>';
+    return;
+  }
+  list.forEach(bk => {
+    const c = bk.counts || {};
+    const row = document.createElement("div");
+    row.className = "bk";
+    row.innerHTML = `<div class="bkinfo"><b>${escapeHtml(bk.name)}</b>` +
+      `<span>capas ${c["1"] || 0} · ${c["2"] || 0} · ${c["3"] || 0}` +
+      `${bk.saved ? " · " + escapeHtml(bk.saved) : ""}</span></div>`;
+    const btns = document.createElement("div");
+    btns.className = "bkbtns";
+    const mk = (label, cls, fn) => {
+      const b = document.createElement("button");
+      b.className = "btn tiny " + cls;
+      b.textContent = label;
+      b.onclick = fn;
+      btns.appendChild(b);
+      return b;
+    };
+    mk("Cargar", "", () => loadBackup(bk, false));
+    mk("Escribir", "primary", () => loadBackup(bk, true));
+    mk("✕", "ghost", () => delBackup(bk));
+    row.appendChild(btns);
+    el.appendChild(row);
+  });
+}
+async function loadBackup(bk, write) {
+  const res = await api("/api/backups", {action: "load", id: bk.id});
+  if (res.error) { log("ERROR: " + res.error); return; }
+  S.profile = res.profile;
+  renderAll();
+  log(`backup "${bk.name}" cargado en el editor`);
+  if (write) {
+    log("escribiendo 3 capas…");
+    const w = await api("/api/write", {domain: "all", layer: "all"});
+    log(w.error ? "ERROR: " + w.error
+                : `backup "${bk.name}" escrito (${w.written} registros, 3 capas)`);
+  }
+}
+async function saveBackup() {
+  const input = $("#bkName");
+  const name = (input.value || "").trim();
+  if (!name) { log("poné un nombre para el backup"); input.focus(); return; }
+  const res = await api("/api/backups", {action: "save", name, layers: S.profile});
+  if (res.error) { log("ERROR: " + res.error); return; }
+  input.value = "";
+  renderBackups(res.backups || []);
+  log(`backup "${name}" guardado (3 capas)`);
+}
+async function delBackup(bk) {
+  if (!confirm(`¿Borrar el backup "${bk.name}"?`)) return;
+  const res = await api("/api/backups", {action: "delete", id: bk.id});
+  renderBackups(res.backups || []);
+  log(`backup "${bk.name}" borrado`);
+}
+$("#bkSave").onclick = saveBackup;
+$("#bkName").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); saveBackup(); }
+});
+
+(async () => {
+  renderQuick();
+  bindPicker();
+  drawHue(); drawSV(); paintSwatch();
+  await refresh();
+  await loadBackups();
+  log("Listo");
+})();
+</script>
+</body>
+</html>
