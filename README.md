@@ -2,7 +2,27 @@
 
 All-in-one configurator for the cheap Aliexpress **"mini macro keyboard"**: **12 keys + 2 clickable rotary knobs, 3 layers, per-key RGB backlight**, which enumerates on USB as **`514c:8850`** (the "CH57x" family convention used for these pads).
 
-Works on **Windows** (GUI app + local web UI) and **Linux/Fedora** (udev rule + hidraw CLI + web UI). No drivers required for the core features.
+Works on **Windows** and **Linux/Fedora** with the same redesigned UI. No drivers required for the core features.
+
+---
+
+## New UI (same look and features on both OS)
+
+The current app is a local web frontend served by a small HID backend, opened as a
+desktop window (no address bar, no browser tabs):
+
+- **Linux/Fedora**: run `~/.local/bin/macropad-webapp` or the desktop launcher
+  (GTK/WebKit native window).
+- **Windows**: double-click **`windows/iniciar.bat`** (or `python windows/lanzar.py`).
+  It starts `windows/server.py` and opens Edge/Chrome in `--app` mode.
+
+Both use the same frontend in `linux/webapp/`. Features: click a key or knob to
+capture live input (keys, combos, mouse actions, lone modifiers — ESC cancels),
+separate apply buttons per domain and layer, per-key LED editor in slot order,
+named three-layer backups and a remembered light/dark theme.
+
+The older tkinter apps and the `web/` wrapper are still in the repo, but they are
+**not** the current UI.
 
 ---
 
@@ -90,10 +110,15 @@ sudo dnf install chromium && ./linux/start-fedora.sh
 ```
 web/                        Patched macropad-rebind UI (MIT), LEDs enabled for Alternative B
 windows/
-  macropad_configurator.py  Main Windows app: keys + knobs + LEDs + quick-assign
-  web_launcher.py           Serves web/ at 127.0.0.1 and opens Chromium
+  iniciar.bat / lanzar.py   New UI launcher: backend + Edge/Chrome app window
+  server.py                 Local backend for the new UI (127.0.0.1:8799)
+  pad_core.py               Verified protocol core, hid.dll / setupapi.dll transport
+  macropad_configurator.py  Legacy tkinter app (old UI)
+  web_launcher.py           Legacy wrapper for web/
   tools/                    Driver-free HID scripts: probe, dump, setkey, keylog, led_test
 linux/
+  server.py / webapp_gtk.py / webapp/   New UI: backend, native window, frontend
+  configurador-gui.py       Verified core (imported by server.py) + legacy tkinter app
   60-ch57x-keypad.rules     udev uaccess rule
   padcheck.py               hidraw identity + LED CLI
   setup-fedora.sh / start-fedora.sh
